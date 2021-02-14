@@ -1,13 +1,6 @@
-import os, time, sys, json, argparse
+import os, time, sys, json, argparse, fileson
 
 from hash import sha_file
-
-parser = argparse.ArgumentParser(description='Create jsync file database')
-parser.add_argument('dbfile', type=str, help='Database file (.json appended automatically)')
-parser.add_argument('dir', nargs='?', type=str, default=os.getcwd(), help='Directory to scan')
-parser.add_argument('-c', '--checksum', type=str, choices=['none', 'sha1', 'sha1fast'], default='none', help='File checksum')
-parser.add_argument('-p', '--pretty', action='store_true', help='Output indented JSON')
-args = parser.parse_args()
 
 summer = {
         'none': lambda f: 0,
@@ -15,9 +8,44 @@ summer = {
         'sha1fast': lambda f: sha_file(f, quick=True),
         }
 
+parser = argparse.ArgumentParser(description='Create jsync file database')
+parser.add_argument('dbfile', type=str, help='Database file (.json appended automatically)')
+parser.add_argument('dir', nargs='?', type=str, default=os.getcwd(), help='Directory to scan')
+parser.add_argument('-c', '--checksum', type=str, choices=summer.keys(), default='none', help='File checksum')
+parser.add_argument('-p', '--pretty', action='store_true', help='Output indented JSON')
+parser.add_argument('-b', '--base', type=str, help='Previous DB to take checksums for unchanged files')
+parser.add_argument('--verbose', '-v', action='count', default=0, help='Print verbose status')
+args = parser.parse_args()
+
 parents = [None]*256
+startTime = time.time()
+fileCount = 0
+byteCount = 0
+nextG = 1
+
+csLookup = {} # quick lookup for checksums if --base set
+makeKey = lambda f: f'{f["name"]};{f["size"]};{f["modified_gmt"]}'
+collisions = set()
+
+if args.base:
+    fs = fileson.load(args.base)
+    files = fileson.filelist(fs)
+    if not files or not args.checksum in files[0]:
+        print(args.base, 'has no files or missing', args.checksum, 'checksum')
+        exit(-1)
+    for f in files:
+        key = makeKey(f)
+        if key in csLookup: collisions.add(key)
+        csLookup[key] = f[args.checksum]
+    for c in collisions: del csLookup[c]
+    print(len(csLookup), 'checksum lookups',
+            len(collisions), 'collisions removed')
+
+hit, miss = 0, 0
 
 for dirName, subdirList, fileList in os.walk(args.dir):
+    if args.verbose >= 2: print(dirName)
+
     parts = dirName.split(os.sep)
 
     if len(parts)+1 > len(parents):
@@ -36,17 +64,36 @@ for dirName, subdirList, fileList in os.walk(args.dir):
         parents[len(parts)-1]['subdirs'].append(directory)
 
     for fname in fileList:
+        if args.verbose >= 3: print('  ', fname)
         fullname = os.path.join(dirName, fname)
         (mode, ino, dev, nlink, uid, gid, size, atime, mtime, ctime) = \
             os.stat(fullname)
         modTime = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(mtime))
-        directory['files'].append({
+        fileEntry = {
             'name': fname,
             'size': size,
-            #'mtime': mtime,
-            'modified_gmt': modTime,
-            args.checksum: summer[args.checksum](fullname)
-        })
+            'modified_gmt': modTime
+        }
+
+        if makeKey(fileEntry) in csLookup:
+            hit += 1
+            fileEntry[args.checksum] = csLookup[makeKey(fileEntry)]
+        else:
+            miss += 1
+            fileEntry[args.checksum] = summer[args.checksum](fullname)
+
+        directory['files'].append(fileEntry)
+
+        if args.verbose >= 1:
+            fileCount += 1
+            byteCount += size
+            if byteCount > nextG * 2**30:
+                nextG = byteCount // 2**30 + 1;
+                elapsed = time.time() - startTime
+                print(fileCount, 'files processed',
+                        '%.1f G in %.2f s' % (byteCount/2**30, elapsed))
+
+print(hit, 'cache hits', miss, 'misses')
 
 root = next(p for p in parents if p)
 root['name'] = '.'; # normalize
