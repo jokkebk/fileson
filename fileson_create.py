@@ -21,16 +21,20 @@ collisions = set()
 
 if args.base:
     fs = fileson.load(args.base)
-    files = fileson.filelist(fs)
-    if not files or not args.checksum in files[0]:
+
+    if fs['checksum'] != args.checksum:
         print(args.base, 'has no files or missing', args.checksum, 'checksum')
         exit(-1)
-    for f in files:
+
+    for f in fileson.filelist(fs):
         key = makeKey(f)
         if key in csLookup: collisions.add(key)
         csLookup[key] = f[args.checksum]
+
     for c in collisions: del csLookup[c]
-    print(len(csLookup), 'checksum lookups',
+
+    if args.verbose:
+        print(len(csLookup), 'checksum lookups',
             len(collisions), 'collisions removed')
 
 hit, miss = 0, 0
@@ -85,7 +89,7 @@ for dirName, subdirList, fileList in os.walk(args.dir):
                 print(fileCount, 'files processed',
                         '%.1f G in %.2f s' % (byteCount/2**30, elapsed))
 
-print(hit, 'cache hits', miss, 'misses')
+if args.verbose and csLookup: print(hit, 'cache hits', miss, 'misses')
 
 root = next(p for p in parents if p)
 root['name'] = '.'; # normalize
