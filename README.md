@@ -79,46 +79,35 @@ The `myfiles-2010-2020.delta` now contains a JSON array specifying differences
 in the two databases -- files that exist only in origin, only in target, or
 have changed. If you are using a checksum, the command will also look up the
 file from the other db/directory using the checksum to detect moved files.
-Let's say you move `some.zip` around a bit:
+You can again use `-p` to indent the for human-readability.
+Let's say you move `some.zip` around a bit (JSON formatted for clarity):
 
 ```console
 user@server:~$ python3 fileson_create.py files.json ~/mydir -c sha1
 user@server:~$ mv ~/mydir/some.zip ~/mydir/subdir/newName.zip
-user@server:~$ python3 fileson_delta.py files.json ~/mydir
+user@server:~$ python3 fileson_delta.py files.json ~/mydir -p
 [
   {
     "type": "origin only",
-    "path": [
-      "."
-    ],
+    "path": [ "." ],
     "origin": {
       "name": "some.zip",
       "size": 4687597,
       "modified_gmt": "2021-02-15 20:43:56",
       "sha1": "ff60d87dd0433f93128458c940c8d82e8d3836e9"
     },
-    "target_path": [
-      ".",
-      "subdir",
-      "some.zip"
-    ]
+    "target_path": [ ".", "subdir", "some.zip" ]
   },
   {
     "type": "target only",
-    "path": [
-      ".",
-      "subdir"
-    ],
+    "path": [ ".", "subdir" ],
     "target": {
       "name": "some.zip",
       "size": 4687597,
       "modified_gmt": "2021-02-15 20:43:56",
       "sha1": "ff60d87dd0433f93128458c940c8d82e8d3836e9"
     },
-    "origin_path": [
-      ".",
-      "some.zip"
-    ]
+    "origin_path": [ ".", "some.zip" ]
   }
 ]
 ```
