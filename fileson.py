@@ -144,5 +144,4 @@ def create(directory, **kwargs):
 
 def save(fs, dbfile, pretty=False):
     with open(dbfile, 'w', encoding='utf8') as fp:
-        indent = 2 if pretty else 0
-        json.dump(fs, fp, indent=indent)
+        json.dump(fs, fp, indent=(2 if pretty else None))

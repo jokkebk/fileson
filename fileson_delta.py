@@ -77,6 +77,6 @@ for fp in both:
 deltas = sorted(deltas, key=lambda a: a['type'] + os.sep.join(a['path']))
 
 if args.deltafile == '--':
-    for d in deltas: print(d)
+    print(json.dumps(deltas, indent=(2 if args.pretty else None)))
 else:
     fileson.save(deltas, args.deltafile, pretty=args.pretty)
