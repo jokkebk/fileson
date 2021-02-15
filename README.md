@@ -111,3 +111,8 @@ user@server:~$ python3 fileson_delta.py files.json ~/mydir -p
   }
 ]
 ```
+
+Doing an incremental backup would involve grabbing the `target only` type
+deltas which don't have an `origin_path` reference. All other changes can
+be replicated with simple copy and delete statements (and recreated using
+information in the delta).
