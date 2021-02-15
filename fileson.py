@@ -15,17 +15,19 @@ def genDirs(fson):
         yield(d)
         q += d['subdirs']
 
+def addParents(fs):
+    print('adding')
+    for d in genDirs(fs): # Augment data structure with parents
+        for f in d['files']: f['dir'] = d
+        for sd in d['subdirs']: sd['parent'] = d
+
 def load(dbfile):
     fp = open(dbfile, 'r', encoding='utf8')
     fs = json.load(fp)
     fp.close()
     if not 'version' in fs or not 'root' in fs:
         raise RuntimeError(f'{dbfile} does not seem to be Fileson database')
-
-    for d in genDirs(fs): # Augment data structure with parents
-        for f in d['files']: f['dir'] = d
-        for sd in d['subdirs']: sd['parent'] = d
-
+    addParents(fs)
     return fs
 
 def filelist(fson): return [f for d in genDirs(fson) for f in d['files']]
@@ -42,6 +44,7 @@ def create(directory, **kwargs):
     checksum = kwargs.get('checksum', 'sha1')
     verbose = kwargs.get('verbose', 0)
     base = kwargs.get('base', None)
+    haveParents = kwargs.get('parents', False)
 
     parents = [None]*256
     startTime = time.time()
@@ -127,7 +130,7 @@ def create(directory, **kwargs):
     root = next(p for p in parents if p)
     root['name'] = '.'; # normalize
 
-    return {
+    fs = {
             'description': 'Fileson file database.',
             'url': 'https://github.com/jokkebk/fileson.git',
             'version': '0.0.1',
@@ -137,6 +140,8 @@ def create(directory, **kwargs):
             'checksum': checksum,
             'root': root
             }
+    if haveParents: addParents(fs)
+    return fs
 
 def save(fs, dbfile, pretty=False):
     with open(dbfile, 'w', encoding='utf8') as fp:
