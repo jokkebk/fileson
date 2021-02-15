@@ -6,7 +6,7 @@ parser.add_argument('dir', nargs='?', type=str, default=os.getcwd(), help='Direc
 parser.add_argument('-c', '--checksum', type=str, choices=fileson.summer.keys(), default='none', help='Checksum method')
 parser.add_argument('-p', '--pretty', action='store_true', help='Output indented JSON')
 parser.add_argument('-b', '--base', type=str, help='Previous DB to take checksums for unchanged files')
-parser.add_argument('--verbose', '-v', action='count', default=0, help='Print verbose status')
+parser.add_argument('-v', '--verbose', action='count', default=0, help='Print verbose status')
 args = parser.parse_args()
 
 fs = fileson.create(args.dir, checksum=args.checksum, base=args.base,

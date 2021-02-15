@@ -16,7 +16,6 @@ def genDirs(fson):
         q += d['subdirs']
 
 def addParents(fs):
-    print('adding')
     for d in genDirs(fs): # Augment data structure with parents
         for f in d['files']: f['dir'] = d
         for sd in d['subdirs']: sd['parent'] = d
@@ -145,5 +144,5 @@ def create(directory, **kwargs):
 
 def save(fs, dbfile, pretty=False):
     with open(dbfile, 'w', encoding='utf8') as fp:
-        opts = {'indent': 2} if pretty else {}
-        json.dump(fs, fp, **opts)
+        indent = 2 if pretty else 0
+        json.dump(fs, fp, indent=indent)

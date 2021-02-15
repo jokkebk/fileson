@@ -2,53 +2,81 @@ from collections import defaultdict
 import json, argparse, fileson, os
 
 parser = argparse.ArgumentParser(description='Find changes from origin database to target')
-parser.add_argument('origin', type=str, help='Origin database')
-parser.add_argument('target', type=str, help='Target database')
+parser.add_argument('origin', type=str, help='Origin database or directory')
+parser.add_argument('target', type=str, help='Target database or directory')
+parser.add_argument('deltafile', nargs='?', type=str, default='--', help='deltafile for delta or -- for stdout (default)')
+parser.add_argument('-v', '--verbose', action='count', default=0, help='Print verbose status')
+parser.add_argument('-p', '--pretty', action='store_true', help='Output indented JSON')
+parser.add_argument('-c', '--checksum', type=str, choices=fileson.summer.keys(), default='sha1fast', help='Checksum method (only for two dirs)')
 args = parser.parse_args()
 
-origin = fileson.load(args.origin)
-target = fileson.load(args.target)
+origin, target, checksum = None, None, None
 
-checksum = origin['checksum']
-if checksum != target['checksum']:
-    print('Different checksum types, falling back to date+size+name heuristic')
-    checksum = 'none'
+if os.path.isfile(args.origin):
+    origin = fileson.load(args.origin)
+    checksum = origin['checksum']
+if os.path.isfile(args.target):
+    target = fileson.load(args.target)
+    if checksum and checksum != target['checksum']:
+        print('Different checksum types, falling back to date+size+name heuristic')
+        checksum = 'none'
+    else: checksum = target['checksum']
 
-filepath = lambda f: os.sep.join(fileson.path(f))
+if not checksum: checksum = args.checksum
+if args.verbose: print('Using checksum', checksum)
+
+origin = origin or fileson.create(args.origin, checksum=checksum, parents=True)
+target = target or fileson.create(args.target, checksum=checksum, parents=True)
 
 ofiles = fileson.filelist(origin)
 tfiles = fileson.filelist(target)
 
 ohash = {} if checksum=='none' else {f[checksum]: f for f in ofiles}
+thash = {} if checksum=='none' else {f[checksum]: f for f in tfiles}
 
+filepath = lambda f: os.sep.join(fileson.path(f))
 omap = {filepath(f): f for f in ofiles}
 tmap = {filepath(f): f for f in tfiles}
 
 both = sorted(set(omap.keys()) | set(tmap.keys()))
 
-print(len(ofiles), 'in origin,', len(tfiles),
+if args.verbose: print(len(ofiles), 'in origin,', len(tfiles),
         'in target,', len(both), 'in both')
+
+pick = lambda f: {k: f[k] for k in ('name', 'size', 'modified_gmt', checksum)}
 
 def process(fp, ofile, tfile):
     if ofile == None:
+        delta = {'type': 'target only',
+                'path': fileson.path(tfile)[:-1],
+                'target': pick(tfile)}
         if tfile[checksum] in ohash:
-            f = ohash[tfile[checksum]]
-            return {'action': 'copy',
-                    'origin': filepath(f), 'file': fp }
-        else: return {'action': 'create', 'file': fp }
+            delta['origin_path'] = fileson.path(ohash[tfile[checksum]])
+        return delta
     elif tfile == None:
-        return {'action': 'delete', 'file': fp}
+        delta = {'type': 'origin only',
+                'path': fileson.path(ofile)[:-1],
+                'origin': pick(ofile)}
+        if ofile[checksum] in thash:
+            delta['target_path'] = fileson.path(thash[ofile[checksum]])
+        return delta
     else:
-        diff = []
         for f in (checksum, 'modified_gmt', 'size'):
-            if ofile[f] != tfile[f]: diff.append(f)
-        if diff: return {'action': 'modify', 'file': fp, 'changes': diff}
+            if ofile[f] != tfile[f]:
+                return {'type': 'change',
+                        'path': fileson.path(ofile)[:-1],
+                        'origin': pick(ofile),
+                        'target': pick(tfile)}
     return None
 
-actions = []
+deltas = []
 for fp in both:
     ret = process(fp, omap.get(fp), tmap.get(fp))
-    if ret: actions.append(ret)
+    if ret: deltas.append(ret)
 
-for a in sorted(actions, key=lambda a: a['action'] + a['file']):
-    print(a)
+deltas = sorted(deltas, key=lambda a: a['type'] + os.sep.join(a['path']))
+
+if args.deltafile == '--':
+    for d in deltas: print(d)
+else:
+    fileson.save(deltas, args.deltafile, pretty=args.pretty)
