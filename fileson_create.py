@@ -1,17 +1,9 @@
 import os, time, sys, json, argparse, fileson
 
-from hash import sha_file
-
-summer = {
-        'none': lambda f: 0,
-        'sha1': lambda f: sha_file(f),
-        'sha1fast': lambda f: sha_file(f, quick=True),
-        }
-
 parser = argparse.ArgumentParser(description='Create jsync file database')
-parser.add_argument('dbfile', type=str, help='Database file (.json appended automatically)')
+parser.add_argument('dbfile', type=str, help='Database file (JSON format)')
 parser.add_argument('dir', nargs='?', type=str, default=os.getcwd(), help='Directory to scan')
-parser.add_argument('-c', '--checksum', type=str, choices=summer.keys(), default='none', help='File checksum')
+parser.add_argument('-c', '--checksum', type=str, choices=fileson.summer.keys(), default='none', help='File checksum')
 parser.add_argument('-p', '--pretty', action='store_true', help='Output indented JSON')
 parser.add_argument('-b', '--base', type=str, help='Previous DB to take checksums for unchanged files')
 parser.add_argument('--verbose', '-v', action='count', default=0, help='Print verbose status')
@@ -80,7 +72,7 @@ for dirName, subdirList, fileList in os.walk(args.dir):
             fileEntry[args.checksum] = csLookup[makeKey(fileEntry)]
         else:
             miss += 1
-            fileEntry[args.checksum] = summer[args.checksum](fullname)
+            fileEntry[args.checksum] = fileson.summer[args.checksum](fullname)
 
         directory['files'].append(fileEntry)
 
@@ -101,10 +93,11 @@ root['name'] = '.'; # normalize
 run = {
         'description': 'Fileson file database.',
         'url': 'https://github.com/jokkebk/fileson.git',
-        'version': '0.0.0',
+        'version': '0.0.1',
         'date_gmt': time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime()),
         'arguments': sys.argv,
         'dir': args.dir,
+        'checksum': args.checksum,
         'root': root
         }
 

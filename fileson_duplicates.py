@@ -2,7 +2,7 @@ from collections import defaultdict
 import json, argparse, fileson, os
 
 parser = argparse.ArgumentParser(description='Look for duplicates in Fileson DB')
-parser.add_argument('dbfile', type=str, help='Database file (.json appended automatically)')
+parser.add_argument('dbfile', type=str, help='Database file')
 parser.add_argument('-s', '--size-min', type=str, default='0', help='Minimum size (e.g. 100, 10k, 1M)')
 args = parser.parse_args()
 
@@ -15,7 +15,7 @@ if not files:
     print('No files.')
     exit(0)
 
-checksum = next(c for c in ['sha1fast', 'sha1', 'none'] if c in files[0])
+checksum = fs['checksum']
 if checksum == 'none':
     print('No checksum!')
     exit(0)
