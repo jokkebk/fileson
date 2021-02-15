@@ -6,15 +6,15 @@ parser.add_argument('origin', type=str, help='Origin database')
 parser.add_argument('target', type=str, help='Target database')
 args = parser.parse_args()
 
-origin = fileson.load(args.origin, paths=True)
-target = fileson.load(args.target, paths=True)
+origin = fileson.load(args.origin)
+target = fileson.load(args.target)
 
 checksum = origin['checksum']
 if checksum != target['checksum']:
     print('Different checksum types, falling back to date+size+name heuristic')
     checksum = 'none'
 
-filepath = lambda f: f['dir']['path'] + os.sep + f['name']
+filepath = lambda f: os.sep.join(fileson.path(f))
 
 ofiles = fileson.filelist(origin)
 tfiles = fileson.filelist(target)
