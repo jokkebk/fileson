@@ -11,12 +11,19 @@ class AESFile:
             saltStr.encode('utf8'), iterations)
 
     def __init__(self, filename, mode, key):
-        ctr = Counter.new(128)
-        self.obj = AES.new(key, AES.MODE_CTR, counter=ctr)
+        self.key = key
+        self.obj = AES.new(key, AES.MODE_CTR, counter=Counter.new(128))
         if mode in ('wb', 'rb'): self.fp = open(filename, mode)
         else: raise RuntimeError('Only rb and wb modes supported!')
     def write(self, data): return self.fp.write(self.obj.encrypt(data))
     def read(self, size=-1): return self.obj.decrypt(self.fp.read(size))
+    def tell(self): return self.fp.tell()
+    def seek(self, offset, whence=0): # enough seek to satisfy AWS boto3
+        if offset: raise RuntimeError('Only seek(0) supported')
+        self.fp.seek(offset, whence) # offset=0 works for all whences
+        if not whence: self.obj = AES.new(self.key, AES.MODE_CTR,
+                counter=Counter.new(128)) # reset crypto on seek start
+
     def close(self): self.fp.close()
 
 if __name__ == "__main__":
@@ -28,7 +35,7 @@ if __name__ == "__main__":
     parser.add_argument('output', type=str, help='Output file')
     parser.add_argument('password', type=str, help='Password')
     parser.add_argument('salt', type=str, help='Salt')
-    parser.add_argument('-i', '--iterations', type=int, default=100000,
+    parser.add_argument('-i', '--iterations', type=int, default=10000,
             help='PBKDF2 iterations (default 100000)')
     args = parser.parse_args()
     key = AESFile.key(args.password, args.salt, args.iterations)
