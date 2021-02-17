@@ -19,7 +19,7 @@ user@server:~$ python3 fileson_create.py files.json ~/mydir -c sha1
 ```
 
 You can add `-p` to make the `.json` file more human-readable. See all
-options with `-h`.
+options with `-h`. Special filename `-` writes to `stdout`.
 
 Calculating SHA1 checksums is somewhat slow, around 1 GB/s on modern m.2 SSD
 and 150 MB/s on a mechanical drive, so you can use `-c sha1fast` to only
@@ -27,7 +27,8 @@ include the beginning of the file. It will differentiate most cases quite
 well.
 
 If you have a previous fileson database at hand, you can use that as a
-base and only calculate checksums for new files:
+base using `-b prevfile` or `--base prevfile` and only calculate checksums
+for new files:
 
 ```console
 user@server:~$ python3 fileson_create.py files-20210101.json \
@@ -35,15 +36,16 @@ user@server:~$ python3 fileson_create.py files-20210101.json \
 ```
 
 Checksum lookup treats files with identical name, size and modification
-timestamp as identical. It will remove duplicates from cache (these should
-be rare) but will assume that any new or moved files with identical
-fingerprint are unchanged. This should work very well for normal use cases.
+timestamp as identical. This should work very well for normal use cases.
+If you want to be more strict, add `-s` or `--strict` to further limit
+matches to full path matches. Note that this means calculating new checksum
+for all moved files.
 
 ## Duplicate detection
 
 Once you have a fileson database ready, you can do fun things like see if
 you have any duplicates in your folder (cryptic string before duplicates
-identifies the `size-hash` collision):
+identifies the checksum collision, whether it is based on size or sha1):
 
 ```console
 user@server:~$ python3 fileson_duplicates.py pics.json

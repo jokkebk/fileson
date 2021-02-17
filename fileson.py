@@ -35,6 +35,7 @@ def create(directory, **kwargs):
     checksum = kwargs.get('checksum', None)
     verbose = kwargs.get('verbose', 0)
     base = kwargs.get('base', None)
+    strict = kwargs.get('strict', False)
     haveParents = kwargs.get('parents', False)
 
     parents = [None]*256
@@ -42,6 +43,7 @@ def create(directory, **kwargs):
     fileCount = 0
     byteCount = 0
     nextG = 1
+    csummer = summer['psm' if strict else 'nsm']
 
     csLookup = {} # quick lookup for checksums if --base set
 
@@ -51,7 +53,8 @@ def create(directory, **kwargs):
                 f'{base} does not have {checksum} checksum')
         for f in filelist(fs): # path/size/modified as key
             fpath = os.sep.join(path(f)[1:])
-            key = summer['psm'](fpath, f)
+            key = csummer(fpath, f)
+            #print('Storing', key)
             csLookup[key] = f[checksum]
 
     for dirName, subdirList, fileList in os.walk(directory):
@@ -88,9 +91,9 @@ def create(directory, **kwargs):
             }
 
             if checksum:
-                key = summer['psm'](rpath, fileEntry)
-                if key in csLookup:
-                    fileEntry[checksum] = csLookup[key]
+                key = csummer(rpath, fileEntry)
+                #print('Seeking', key, key in csLookup)
+                if key in csLookup: fileEntry[checksum] = csLookup[key]
                 else:
                     fileEntry[checksum] = summer[checksum](fpath, fileEntry)
                     if verbose >= 2: print(fpath, checksum, fileEntry[checksum])

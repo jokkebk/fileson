@@ -12,3 +12,4 @@ dirs = [d for d in fileson.genDirs(fs)]
 
 print(len(files), 'files', len(dirs), 'directories')
 print('Maximum directory depth', max(len(fileson.path(d)) for d in dirs))
+print('Maximum file size %.3f GB' % (max(f['size'] for f in files)/2**30))
