@@ -44,32 +44,22 @@ def create(directory, **kwargs):
     nextG = 1
 
     csLookup = {} # quick lookup for checksums if --base set
-    makeKey = lambda f: summer['nsm']('', f)
-    collisions = set()
 
-    if base:
+    if base and checksum: # useless to load base without checksum
         fs = load(base)
-
         if fs['checksum'] != checksum: raise RuntimeError(
-                f'{base} has no files or missing {checksum} checksum')
-
-        for f in filelist(fs):
-            key = makeKey(f)
-            if key in csLookup: collisions.add(key)
+                f'{base} does not have {checksum} checksum')
+        for f in filelist(fs): # path/size/modified as key
+            fpath = os.sep.join(path(f)[1:])
+            key = summer['psm'](fpath, f)
             csLookup[key] = f[checksum]
 
-        for c in collisions: del csLookup[c]
-
-        if verbose:
-            print(len(csLookup), 'checksum lookups',
-                len(collisions), 'collisions removed')
-
     for dirName, subdirList, fileList in os.walk(directory):
-        if verbose >= 2: print(dirName)
+        if verbose >= 3: print(dirName)
 
         parts = dirName.split(os.sep)
 
-        if len(parts)+1 > len(parents):
+        if len(parts) + 1 > len(parents):
             print(f'Maximum directory depth {len(parts)} exceeded!')
             exit(-1)
 
@@ -85,10 +75,11 @@ def create(directory, **kwargs):
             parents[len(parts)-1]['subdirs'].append(dirEntry)
 
         for fname in fileList:
+            fpath = os.path.join(dirName, fname)
+            rpath = os.path.relpath(fpath, directory) # relative for csLookup
             if verbose >= 3: print('  ', fname)
-            path = os.path.join(dirName, fname)
             (mode, ino, dev, nlink, uid, gid, size, atime, mtime, ctime) = \
-                os.stat(path)
+                os.stat(fpath)
             modTime = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(mtime))
             fileEntry = {
                 'name': fname,
@@ -97,11 +88,12 @@ def create(directory, **kwargs):
             }
 
             if checksum:
-                if makeKey(fileEntry) in csLookup:
-                    fileEntry[checksum] = csLookup[makeKey(fileEntry)]
+                key = summer['psm'](rpath, fileEntry)
+                if key in csLookup:
+                    fileEntry[checksum] = csLookup[key]
                 else:
-                    fileEntry[checksum] = summer[checksum](path, fileEntry)
-                    if verbose >= 2: print(path, fileEntry[checksum])
+                    fileEntry[checksum] = summer[checksum](fpath, fileEntry)
+                    if verbose >= 2: print(fpath, checksum, fileEntry[checksum])
 
             dirEntry['files'].append(fileEntry)
 
