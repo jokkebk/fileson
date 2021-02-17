@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from collections import defaultdict
 import json, argparse, fileson, os
 
@@ -10,29 +11,21 @@ parser.add_argument('-p', '--pretty', action='store_true', help='Output indented
 parser.add_argument('-c', '--checksum', type=str, choices=fileson.summer.keys(), default='sha1fast', help='Checksum method (only for two dirs)')
 args = parser.parse_args()
 
-origin, target, checksum = None, None, None
-
-if os.path.isfile(args.origin):
-    origin = fileson.load(args.origin)
-    checksum = origin['checksum']
-if os.path.isfile(args.target):
-    target = fileson.load(args.target)
-    if checksum and checksum != target['checksum']:
-        print('Different checksum types, falling back to date+size+name heuristic')
-        checksum = 'none'
-    else: checksum = target['checksum']
-
-if not checksum: checksum = args.checksum
-if args.verbose: print('Using checksum', checksum)
-
-origin = origin or fileson.create(args.origin, checksum=checksum, parents=True)
-target = target or fileson.create(args.target, checksum=checksum, parents=True)
+origin = fileson.load(args.origin, checksum=args.checksum)
+target = fileson.load(args.target, checksum=args.checksum)
 
 ofiles = fileson.filelist(origin)
 tfiles = fileson.filelist(target)
 
-ohash = {} if checksum=='none' else {f[checksum]: f for f in ofiles}
-thash = {} if checksum=='none' else {f[checksum]: f for f in tfiles}
+if origin['checksum'] != target['checksum']:
+    print('Different checksum types!')
+    exit(1)
+
+checksum = target['checksum']
+if args.verbose: print('Using checksum', checksum)
+
+ohash = {f[checksum]: f for f in ofiles}
+thash = {f[checksum]: f for f in tfiles}
 
 filepath = lambda f: os.sep.join(fileson.path(f))
 omap = {filepath(f): f for f in ofiles}
