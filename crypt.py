@@ -5,7 +5,7 @@ import hashlib, os
 
 class AESFile:
     """On-the-fly AES encryption (on read) and decryption (on write).
-    When reading, gives 16 bytes of iv first, then encrypted payload.
+    When reading, returns 16 bytes of iv first, then encrypted payload.
     On writing, first 16 bytes are assumed to contain the iv.
     Does the bare minimum, you may get errors if not careful."""
     @staticmethod
@@ -21,7 +21,7 @@ class AESFile:
         if not mode in ('wb', 'rb'): 
             raise RuntimeError('Only rb and wb modes supported!')
 
-        self.pos = 0 # -1 for end
+        self.pos = 0
         self.key = key
         self.mode = mode
         self.fp = open(filename, mode)
@@ -31,21 +31,18 @@ class AESFile:
             self.initAES()
         else: self.iv = bytearray(16)
 
-
     def write(self, data):
-        #print('write, size:', len(data))
         datalen = len(data)
         if self.pos < 16:
             ivlen = min(16-self.pos, datalen)
             self.iv[self.pos:self.pos+ivlen] = data[:ivlen]
             self.pos += ivlen
-            if self.pos == 16: self.initAES()
+            if self.pos == 16: self.initAES() # ready to init now
             data = data[ivlen:]
         if data: self.pos += self.fp.write(self.obj.decrypt(data))
         return datalen
 
     def read(self, size=-1):
-        #print('read, size:', size)
         ivpart = b''
         if self.pos < 16:
             if size == -1: ivpart = self.iv
@@ -54,17 +51,13 @@ class AESFile:
                 size -= len(ivpart)
         enpart = self.obj.encrypt(self.fp.read(size)) if size else b''
         self.pos += len(ivpart) + len(enpart)
-        #print('return', len(ivpart), 'bytes iv', len(enpart), 'bytes data')
         return ivpart + enpart
 
-    def tell(self):
-        #print('tell', self.pos)
-        return self.pos
+    def tell(self): return self.pos
 
     # only in read mode (encrypting)
     def seek(self, offset, whence=0): # enough seek to satisfy AWS boto3
         if offset: raise RuntimeError('Only seek(0, whence) supported')
-        #print('seek', offset, whence)
 
         self.fp.seek(offset, whence) # offset=0 works for all whences
         if whence==0: # absolute positioning, offset=0
