@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import argparse
+import argparse, os
 from fileson import Fileson
 
 parser = argparse.ArgumentParser(description='Create fileson JSON file database')
@@ -11,7 +11,7 @@ parser.add_argument('-s', '--strict', action='store_true', help='Skip checksum o
 parser.add_argument('-v', '--verbose', action='count', default=0, help='Print verbose status. Repeat for even more.')
 args = parser.parse_args()
 
-fs = Fileson()
+fs = Fileson.load(args.dbfile) if os.path.exists(args.dbfile) else Fileson()
 fs.scan(args.dir, checksum=args.checksum,
         verbose=args.verbose, strict=args.strict)
 fs.save(args.dbfile, pretty=args.pretty)

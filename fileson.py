@@ -1,4 +1,5 @@
 import json, os, time
+from collections import defaultdict
 
 from hash import sha_file
 
@@ -10,24 +11,30 @@ class Fileson:
             'sha1fast': lambda p,f: sha_file(p, quick=True)+str(f['size']),
             }
 
-    @staticmethod
-    def load(filename):
+    @classmethod
+    def load(cls, filename):
         with open(filename, 'r', encoding='utf8') as fp:
             js = json.load(fp)
-            if not 'version' in fs or not 'root' in fs:
+            if not 'runs' in js or not 'root' in js:
                 raise RuntimeError(f'{dbfile} does not seem to be Fileson database')
-            return Fileson(js['scans'], js['root'])
+            return cls(js['runs'], defaultdict(list, js['root']))
 
-    def __init__(self, scans=[], root=[]):
-        self.scans = scans
-        self.root = {}
+    def __init__(self, runs=[], root=defaultdict(list)):
+        self.runs = runs
+        self.root = root # keys are paths, values are (run, type) tuples
+
+    def set(self, path, run, obj):
+        prev = self.root[path][-1][1] if path in self.root else None
+        if prev == obj: return False # unmodified
+        self.root[path].append((run,obj))
+        return True # modified
 
     def save(self, filename, pretty=False):
         js = {
                 'description': 'Fileson file database.',
                 'url': 'https://github.com/jokkebk/fileson.git',
                 'version': '0.1.0',
-                'scans': self.scans,
+                'runs': self.runs,
                 'root': self.root
                 }
         with open(filename, 'w', encoding='utf8') as fp:
@@ -37,55 +44,52 @@ class Fileson:
         checksum = kwargs.get('checksum', None)
         verbose = kwargs.get('verbose', 0)
         strict = kwargs.get('strict', False)
-        csummer = Fileson.summer[checksum]
+        make_key = lambda p: p if strict else p.split(os.sep)[-1]
         
-        self.scans.append({'checksum': checksum,
+        ccache = {}
+        if self.runs and checksum:
+            for p in self.root:
+                r, o = self.root[p][-1]
+                if isinstance(o, dict) and checksum in o:
+                    ccache[(make_key(p), o['modified_gmt'], o['size'])] = \
+                        o[checksum]
+        #for p in ccache: print(p, ccache[p])
+
+        missing = set(self.root) # remove paths as they are encountered
+
+        self.runs.append({'checksum': checksum,
             'date_gmt': time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime()),
             'verbose': verbose, 'strict': strict })
 
-        scan = len(self.scans)
+        run = len(self.runs)
 
-        # Hand crafted entry to get '.' contents to self.root. Fuck this.
-        fakeRoot = {'content': {'.': [{'from': 0, 'to': scan, 'type': 'd', 'content': self.root}]}}
-        parents = [fakeRoot] + [None]*255
         startTime = time.time()
         fileCount, byteCount, nextG = 0, 0, 1
+
         for dirName, subdirList, fileList in os.walk(directory):
             path = os.path.relpath(dirName, directory) # relative path
-            parts = path.split(os.sep) # parts[-1] is the file/dir name
-            parent = parents[len(parts)-1] # fetch parent or fakeRoot
+            self.set(path, run, 'D')
+            missing.discard(path)
 
-            # Add a node if missing. Key '.' will be added to fakeRoot
-            if not parts[-1] in parent['content']:
-                print('adding', parts[-1])
-                parent['content'][parts[-1]] = [{ 'from': scan, 'to': scan,
-                    'type': 'd', 'content': {}}]
-
-            latest = parent['content'][parts[-1]][-1]
-            if latest['type'] == 'd':
-                dirEntry = latest
-                dirEntry['to'] = scan # extend
-            else: # file or deleted node replaced with a directory
-                dirEntry = {'from': scan, 'to': scan, 'type': 'd', 'content': {}}
-                parent['content'][parts[-1]].append(dirEntry)
-
-            parents[len(parts)] = dirEntry # store for children
-
-            continue
             for fname in fileList:
                 fpath = os.path.join(dirName, fname)
                 rpath = os.path.relpath(fpath, directory) # relative for csLookup
+
                 (mode, ino, dev, nlink, uid, gid, size, atime, mtime, ctime) = \
                     os.stat(fpath)
                 modTime = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(mtime))
-                fileEntry = {
+                f = {
                     'size': size,
                     'modified_gmt': modTime
                 }
-                dirEntry['content'][fname] = [(scan, 'f', fileEntry)] # @TODO check if exists
 
                 if checksum:
-                    fileEntry['checksum'] = csummer(fpath, fileEntry)
+                    key = (make_key(rpath), modTime, size)
+                    if key in ccache: f[checksum] = ccache[key]
+                    else: f[checksum] = Fileson.summer[checksum](fpath, f)
+
+                if self.set(rpath, run, f): pass # print('modified', rpath)
+                missing.discard(rpath)
 
                 if verbose >= 1:
                     fileCount += 1
@@ -96,16 +100,14 @@ class Fileson:
                         print(fileCount, 'files processed',
                                 '%.1f G in %.2f s' % (byteCount/2**30, elapsed))
 
-            #for fname in fileList:
+        # Mark missing elements as removed (if not already so)
+        for p in missing: self.set(p, run, None) 
 
-            #    if checksum:
-            #        key = csummer(rpath, fileEntry)
-            #        #print('Seeking', key, key in csLookup)
-            #        if key in csLookup: fileEntry[checksum] = csLookup[key]
-            #        else:
-            #            fileEntry[checksum] = summer[checksum](fpath, fileEntry)
-            #            if verbose >= 2: print(fpath, checksum, fileEntry[checksum])
-
+    def diff(self):
+        for p in self.root:
+            run, o = self.root[p][-1]
+            if run == len(self.runs):
+                print(p, o)
 
 def load_or_scan(obj, **kwargs): # kwargs only passed to create
     if isinstance(obj, str):
