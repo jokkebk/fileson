@@ -15,9 +15,9 @@ class Fileson:
     def load(cls, filename):
         with open(filename, 'r', encoding='utf8') as fp:
             js = json.load(fp)
-        if not 'runs' in js or not 'root' in js:
-            raise RuntimeError(f'{dbfile} does not seem to be Fileson database')
-        return cls(js['runs'], defaultdict(list, js['root']))
+            if not 'runs' in js or not 'root' in js:
+                raise RuntimeError(f'{dbfile} does not seem to be Fileson database')
+            return cls(js['runs'], defaultdict(list, js['root']))
 
     @classmethod
     def load_or_scan(cls, obj, **kwargs): # kwargs only passed to scan
@@ -27,9 +27,10 @@ class Fileson:
             return fs
         else: return cls.load(obj)
 
-    def __init__(self, runs=[], root=defaultdict(list)):
-        self.runs = runs
-        self.root = root # keys are paths, values are (run, type) tuples
+    def __init__(self, runs=None, root=None):
+        self.runs = runs or []
+        # keys are paths, values are (run, type) tuples
+        self.root = root or defaultdict(list)
 
     def set(self, path, run, obj):
         prev = self.root[path][-1][1] if path in self.root else None
