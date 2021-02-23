@@ -20,9 +20,8 @@ tfiles = {p: o for p,r,o in target.genItems('all')}
 
 checksum = origin.runs[-1]['checksum'] # can be None
 if checksum != target.runs[-1]['checksum']:
-    if args.verbose:
-        print('Different checksum types, existence check unavailable.')
-    checksum = None
+    print('Different checksum types, cannot meaningfully compare!')
+    exit(-1)
 
 if args.verbose: print('Using checksum', checksum)
 
