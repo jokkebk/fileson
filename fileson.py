@@ -15,9 +15,17 @@ class Fileson:
     def load(cls, filename):
         with open(filename, 'r', encoding='utf8') as fp:
             js = json.load(fp)
-            if not 'runs' in js or not 'root' in js:
-                raise RuntimeError(f'{dbfile} does not seem to be Fileson database')
-            return cls(js['runs'], defaultdict(list, js['root']))
+        if not 'runs' in js or not 'root' in js:
+            raise RuntimeError(f'{dbfile} does not seem to be Fileson database')
+        return cls(js['runs'], defaultdict(list, js['root']))
+
+    @classmethod
+    def load_or_scan(cls, obj, **kwargs): # kwargs only passed to scan
+        if os.path.isdir(obj):
+            fs = cls()
+            fs.scan(obj, **kwargs)
+            return fs
+        else: return cls.load(obj)
 
     def __init__(self, runs=[], root=defaultdict(list)):
         self.runs = runs
@@ -26,7 +34,7 @@ class Fileson:
     def set(self, path, run, obj):
         prev = self.root[path][-1][1] if path in self.root else None
         if prev == obj: return False # unmodified
-        self.root[path].append((run,obj))
+        self.root[path].append((run,obj)) # will become [run,obj] on save
         return True # modified
 
     def save(self, filename, pretty=False):
@@ -103,15 +111,8 @@ class Fileson:
         # Mark missing elements as removed (if not already so)
         for p in missing: self.set(p, run, None) 
 
-    def diff(self):
+    def genItems(self, **kwargs):
+        types = set(type(t) for t in kwargs.get('types', ('D', {})))
         for p in self.root:
-            run, o = self.root[p][-1]
-            if run == len(self.runs):
-                print(p, o)
-
-def load_or_scan(obj, **kwargs): # kwargs only passed to create
-    if isinstance(obj, str):
-        if os.path.isdir(obj): return create(obj, **kwargs, parents=True)
-        fp = sys.stdio if obj=='-' else open(obj, 'r', encoding='utf8')
-    fs = json.load(fp)
-    fp.close()
+            r,o = self.root[p][-1]
+            if type(o) in types: yield(p,r,o)

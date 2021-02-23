@@ -1,2 +1,3 @@
 *.json 
+*.fson 
 __pycache__ 
