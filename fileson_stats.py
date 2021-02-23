@@ -8,8 +8,8 @@ parser.add_argument('db_or_dir', type=str, help='Database file or directory')
 args = parser.parse_args()
 
 fs = Fileson.load_or_scan(args.db_or_dir)
-files = [i for i in fs.genItems(types=({},))]
-dirs = [i for i in fs.genItems(types=('D'))]
+files = [i for i in fs.genItems('files')]
+dirs = [i for i in fs.genItems('dirs')]
 
 print(len(files), 'files', len(dirs), 'directories')
 if dirs:

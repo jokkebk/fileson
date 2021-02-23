@@ -111,8 +111,11 @@ class Fileson:
         # Mark missing elements as removed (if not already so)
         for p in missing: self.set(p, run, None) 
 
-    def genItems(self, **kwargs):
-        types = set(type(t) for t in kwargs.get('types', ('D', {})))
+    def genItems(self, *args):
+        types = set()
+        if 'all' in args or 'files' in args: types.add(type({}))
+        if 'all' in args or 'dirs' in args: types.add(type('D'))
+        if 'all' in args or 'deletes' in args: types.add(type(None))
         for p in self.root:
             r,o = self.root[p][-1]
             if type(o) in types: yield(p,r,o)
