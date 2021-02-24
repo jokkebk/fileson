@@ -69,6 +69,16 @@ class Fileson:
             while a and a[-1][0] > run: a.pop()
             if not a: del self.root[p]
 
+    def purge(self, run=-1): # discard inactive changes before <run>
+        if run < 0: run += len(self.runs)
+        for p in list(self.root):
+            a = self.root[p]
+            b = [(max(r-run,1),o) for r,o in a if r>run]
+            if not b: b = [(max(a[-1][0]-run,1), a[-1][1])]
+            if len(b) > 1 or b[0][1] != None: self.root[p] = b
+            else: del self.root[p] # remove node if only deleted
+        self.runs = self.runs[run:]
+
     def genItems(self, *args):
         types = set()
         if 'all' in args or 'files' in args: types.add(type({}))
@@ -163,7 +173,9 @@ class Fileson:
             _, ofile = self.get(p) # discard run
             _, tfile = comp.get(p) # discard run
             d = {'path': p, 'origin': ofile, 'target': tfile}
-            if not ofile:
+            if p == 'some.zip': print(d)
+            if not ofile and not tfile: continue
+            elif not ofile:
                 if checksum and isinstance(tfile, dict) and tfile[checksum] in ohash:
                     d['origin_path'] = ohash[tfile[checksum]]
             elif not tfile:

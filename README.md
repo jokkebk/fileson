@@ -7,7 +7,7 @@ databases. There are a few key files:
 * `fileson.py` contains `Fileson` class to read, manipulate and write
 Fileson databases.
 * `fileson_util.py` is a command-line toolkit to create Fileson
-databases and do useful things with them (see below)
+databases and do useful things with them
 
 ## Create a Fileson database
 
@@ -114,7 +114,7 @@ user@server:~$ python3 fileson_util.py diff files.fson ~/mydir -c sha1 -p
 ```
 
 Doing an incremental backup would involve grabbing the deltas which have
-`origin' set to 'null' and don't have an `origin_path` reference. All other
+`origin` set to `null` and don't have an `origin_path` reference. All other
 changes can be replicated with simple copy and delete statements (and recreated
 using information in the diff).
 

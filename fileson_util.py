@@ -25,7 +25,7 @@ arg_adders = {
 'dest': lambda p: p.add_argument('dest', type=str,
     help='Destination DB'),
 'force': lambda p: p.add_argument('-f', '--force', action='store_true',
-    help='Overwrite if necessary'),
+    help='Force action without additional prompts'),
 'minsize': lambda p: p.add_argument('-m', '--minsize', type=str, default='0',
     help='Minimum size (e.g. 100, 10k, 1M)'),
 'origin': lambda p: p.add_argument('origin', type=str,
@@ -35,6 +35,8 @@ arg_adders = {
 'delta': lambda p: p.add_argument('delta', nargs='?',
     type=argparse.FileType('w'), default='-',
     help='filename for delta or - for stdout (default)'),
+'run': lambda p: p.add_argument('-r', '--run', type=int, default=None,
+    help='run number, negative are relative to latest'),
         }
 
 # Function per command
@@ -56,6 +58,19 @@ def duplicates(args):
     for csum,ps in csums.items():
         if len(ps)>1: print(csum, *ps, sep='\n')
 duplicates.args = 'db_or_dir minsize checksum'.split() # args to add
+
+def purge(args):
+    """Purge history from Fileson db."""
+    if not os.path.exists(args.dbfile):
+        print('No such file', args.dbfile)
+        return
+    if not args.force and not 'y' in \
+            input('Are you sure? This cannot be undone. (Y/N) ').lower():
+        return
+    fs = Fileson.load(args.dbfile)
+    fs.purge(args.run or -1)
+    fs.save(args.dbfile)
+purge.args = 'dbfile force run'.split()
 
 def diff(args):
     """Find changes from origin database to target."""
@@ -84,11 +99,10 @@ stats.args = ['db_or_dir'] # args to add
 
 def copy(args):
     """Make a copy of (specified version of the) database."""
-    if not args.force and os.path.exists(args.dest):
-        print(args.dest, 'exists and no -f or --force flag')
-        return
-    fs = Fileson.load(args.src)
-    fs.save(args.dest)
+    if not os.path.exists(args.dest) or args.force or 'y' in \
+            input('Do you wish to overwrite target? (Y/N) ').lower():
+        fs = Fileson.load(args.src)
+        fs.save(args.dest)
 copy.args = 'src dest force'.split() # args to add
 
 def scan(args):
@@ -98,6 +112,10 @@ def scan(args):
     if not args.checksum and fs.runs and fs.runs[-1]['checksum']:
         args.checksum = fs.runs[-1]['checksum']
         print('No checksum specified, using', args.checksum, 'from DB')
+
+    if not args.dir and fs.runs and fs.runs[-1]['directory']:
+        args.dir = fs.runs[-1]['directory']
+        print('No directory specified, using', args.dir, 'from DB')
 
     fs.scan(args.dir, checksum=args.checksum,
             verbose=args.verbose, strict=args.strict)
@@ -109,7 +127,7 @@ parser = argparse.ArgumentParser(description='Fileson database utilities')
 subparsers = parser.add_subparsers(help='sub-command help')
 
 # add commands using function metadata and properties
-for cmd in (copy, diff, duplicates, scan, stats):
+for cmd in (copy, diff, duplicates, purge, scan, stats):
     p = subparsers.add_parser(cmd.__name__, description=cmd.__doc__)
     for argname in cmd.args: arg_adders[argname](p)
     p.set_defaults(func=cmd)
