@@ -22,6 +22,5 @@ if not checksum:
 csums = defaultdict(list)
 for p,o in files: csums[o[checksum]].append(p)
 
-for csum in [cs for cs in csums if len(csums[cs]) > 1]:
-    print(csum)
-    for p in csums[csum]: print(p)
+for csum,ps in csums.items():
+    if len(ps)>1: print(csum, *ps, sep='\n')
