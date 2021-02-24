@@ -12,6 +12,11 @@ parser.add_argument('-v', '--verbose', action='count', default=0, help='Print ve
 args = parser.parse_args()
 
 fs = Fileson.load(args.dbfile) if os.path.exists(args.dbfile) else Fileson()
+
+if not args.checksum and fs.runs and fs.runs[-1]['checksum']:
+    args.checksum = fs.runs[-1]['checksum']
+    print('No checksum specified, using', args.checksum, 'from DB')
+
 fs.scan(args.dir, checksum=args.checksum,
         verbose=args.verbose, strict=args.strict)
 fs.save(args.dbfile, pretty=args.pretty)

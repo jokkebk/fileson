@@ -4,7 +4,7 @@ Fileson is a set of Python scripts to create JSON file databases and
 use them to do various things, like compare differences between two
 databases.
 
-## Create a fileson database
+## Create a Fileson database
 
 ```console
 user@server:~$ python3 fileson_scan.py files.fson ~/mydir
@@ -37,7 +37,7 @@ calculating new checksum for all moved files.
 
 ## Duplicate detection
 
-Once you have a fileson database ready, you can do fun things like see if
+Once you have a Fileson database ready, you can do fun things like see if
 you have any duplicates in your folder (cryptic string before duplicates
 identifies the checksum collision, whether it is based on size or sha1):
 
@@ -61,7 +61,7 @@ user@server:~$ python3 fileson_duplicates.py /mnt/d/SomeFolder -s 1M -c sha1fast
 
 ## Change detection
 
-Once you have a fileson database or two, you can compare them with
+Once you have a Fileson database or two, you can compare them with
 `fileson_diff.py`. Like the duplicate command, one or both can be a directory
 (in the latter case you have to specify checksum method yourself, otherwise
 it's deducted from database files that need to have a matching checksum type):
@@ -112,3 +112,19 @@ Doing an incremental backup would involve grabbing the deltas which have
 `origin' set to 'null' and don't have an `origin_path` reference. All other
 changes can be replicated with simple copy and delete statements (and recreated
 using information in the diff).
+
+Loading Fileson databases has special syntax similar to `git` where you
+can revert to previous versions with `db.fson~1` to get the previous version
+or `db.fson~3` to back down 3 steps. This makes printing out changes after
+a scan a breeze. Instead of the `fileson_diff.py` invocation above, you could
+update the db and see what changed:
+
+```console
+user@server:~$ python3 fileson_scan.py files.fson ~/mydir
+No checksum specified, using sha1 from DB
+user@server:~$ python3 fileson_diff.py files.fson files.fson~1 -p
+[ same output as the above diff ]
+```
+
+Note that you did not have to specify `-c sha1` for the commands because that
+is detected automatically from the Fileson dt.
