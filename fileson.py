@@ -96,7 +96,7 @@ class Fileson:
 
         self.runs.append({'checksum': checksum,
             'date_gmt': time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime()),
-            'verbose': verbose, 'strict': strict })
+            'verbose': verbose, 'strict': strict, 'directory': directory })
 
         run = len(self.runs)
 
@@ -123,7 +123,9 @@ class Fileson:
                 if checksum:
                     key = (make_key(rpath), modTime, size)
                     if key in ccache: f[checksum] = ccache[key]
-                    else: f[checksum] = Fileson.summer[checksum](fpath, f)
+                    else:
+                        if verbose >= 2: print(checksum, rpath)
+                        f[checksum] = Fileson.summer[checksum](fpath, f)
 
                 if self.set(rpath, run, f): pass # print('modified', rpath)
                 missing.discard(rpath)
@@ -163,7 +165,7 @@ class Fileson:
             d = {'path': p, 'origin': ofile, 'target': tfile}
             if not isinstance(ofile, dict) or not isinstance(tfile, dict):
                 if ofile == tfile: continue # simple comparison for non-files
-            if not ofile:
+            elif not ofile:
                 if checksum and tfile[checksum] in ohash:
                     d['origin_path'] = ohash[tfile[checksum]]
             elif not tfile:
@@ -171,4 +173,5 @@ class Fileson:
                     d['target_path'] = thash[ofile[checksum]]
             elif pick(ofile) == pick(tfile): continue # skip appending delta
             deltas.append(d) # we got here, so there's a difference
+            if len(deltas) > 10: break
         return deltas
