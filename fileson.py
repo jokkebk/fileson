@@ -163,15 +163,14 @@ class Fileson:
             _, ofile = self.get(p) # discard run
             _, tfile = comp.get(p) # discard run
             d = {'path': p, 'origin': ofile, 'target': tfile}
-            if not isinstance(ofile, dict) or not isinstance(tfile, dict):
-                if ofile == tfile: continue # simple comparison for non-files
-            elif not ofile:
-                if checksum and tfile[checksum] in ohash:
+            if not ofile:
+                if checksum and isinstance(tfile, dict) and tfile[checksum] in ohash:
                     d['origin_path'] = ohash[tfile[checksum]]
             elif not tfile:
-                if checksum and ofile[checksum] in thash:
+                if checksum and isinstance(ofile, dict) and ofile[checksum] in thash:
                     d['target_path'] = thash[ofile[checksum]]
-            elif pick(ofile) == pick(tfile): continue # skip appending delta
+            elif isinstance(ofile, dict) and isinstance(tfile, dict): # files
+                if pick(ofile) == pick(tfile): continue # skip appending delta
+            elif ofile == tfile: continue # simple comparison for non-files
             deltas.append(d) # we got here, so there's a difference
-            if len(deltas) > 10: break
         return deltas

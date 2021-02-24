@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from collections import defaultdict
 from fileson import Fileson
-import argparse, os, sys
+import argparse, os, sys, json
 
 # These are the different argument types that can be added to a command
 arg_adders = {
