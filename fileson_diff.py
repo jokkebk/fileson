@@ -15,37 +15,6 @@ args = parser.parse_args()
 origin = Fileson.load_or_scan(args.origin, checksum=args.checksum)
 target = Fileson.load_or_scan(args.target, checksum=args.checksum)
 
-ofiles = {p: o for p,r,o in origin.genItems('all')}
-tfiles = {p: o for p,r,o in target.genItems('all')}
-
-checksum = origin.runs[-1]['checksum'] # can be None
-if checksum != target.runs[-1]['checksum']:
-    print('Different checksum types, cannot meaningfully compare!')
-    exit(-1)
-
-if args.verbose: print('Using checksum', checksum)
-
-if checksum: # something other than None
-    ohash = {o[checksum]: p for p,o in ofiles.items() if isinstance(o, dict)}
-    thash = {o[checksum]: p for p,o in tfiles.items() if isinstance(o, dict)}
-
-both = sorted(set(ofiles) | set(tfiles))
-
-if args.verbose: print(len(ofiles), 'in', args.origin, len(tfiles),
-        'in', args.target, len(both), 'in both')
-
-deltas = []
-for p in both:
-    ofile = ofiles.get(p)
-    tfile = tfiles.get(p)
-    d = {'path': p, 'target': tfile, 'origin': ofile}
-    if not ofile:
-        if checksum and isinstance(tfile, dict) and tfile[checksum] in ohash:
-            d['origin_path'] = ohash[tfile[checksum]]
-    elif not tfile:
-        if checksum and isinstance(ofile, dict) and ofile[checksum] in thash:
-            d['target_path'] = thash[ofile[checksum]]
-    elif ofile == tfile: continue # skip appending delta
-    deltas.append(d)
+deltas = origin.diff(target, verbose=args.verbose)
 
 json.dump(deltas, args.delta, indent=(2 if args.pretty else None))

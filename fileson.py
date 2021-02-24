@@ -27,6 +27,17 @@ class Fileson:
             return fs
         else: return cls.load(obj)
 
+    def save(self, filename, pretty=False):
+        js = {
+                'description': 'Fileson file database.',
+                'url': 'https://github.com/jokkebk/fileson.git',
+                'version': '0.1.0',
+                'runs': self.runs,
+                'root': self.root
+                }
+        with open(filename, 'w', encoding='utf8') as fp:
+            json.dump(js, fp, indent=(2 if pretty else None), sort_keys=True)
+
     def __init__(self, runs=None, root=None):
         self.runs = runs or []
         # keys are paths, values are (run, type) tuples
@@ -38,16 +49,19 @@ class Fileson:
         self.root[path].append((run,obj)) # will become [run,obj] on save
         return True # modified
 
-    def save(self, filename, pretty=False):
-        js = {
-                'description': 'Fileson file database.',
-                'url': 'https://github.com/jokkebk/fileson.git',
-                'version': '0.1.0',
-                'runs': self.runs,
-                'root': self.root
-                }
-        with open(filename, 'w', encoding='utf8') as fp:
-            json.dump(js, fp, indent=(2 if pretty else None))
+    def get(self, path, run=None): # get current or given run state
+        if not path in self.root: return (run, None)
+        if not run == -1: return self.root[path][-1]
+        return next(t for t in self.root[path][::-1] if t[0] <= run)
+
+    def genItems(self, *args):
+        types = set()
+        if 'all' in args or 'files' in args: types.add(type({}))
+        if 'all' in args or 'dirs' in args: types.add(type('D'))
+        if 'all' in args or 'deletes' in args: types.add(type(None))
+        for p in self.root:
+            r,o = self.root[p][-1]
+            if type(o) in types: yield(p,r,o)
 
     def scan(self, directory, **kwargs):
         checksum = kwargs.get('checksum', None)
@@ -112,11 +126,35 @@ class Fileson:
         # Mark missing elements as removed (if not already so)
         for p in missing: self.set(p, run, None) 
 
-    def genItems(self, *args):
-        types = set()
-        if 'all' in args or 'files' in args: types.add(type({}))
-        if 'all' in args or 'dirs' in args: types.add(type('D'))
-        if 'all' in args or 'deletes' in args: types.add(type(None))
-        for p in self.root:
-            r,o = self.root[p][-1]
-            if type(o) in types: yield(p,r,o)
+    def diff(self, comp, verbose=False):
+        if not self.runs or not comp.runs: raise RuntimeError(('Both '
+            'fileson objects need runs to compare differences!'))
+
+        checksum = self.runs[-1]['checksum']
+        if checksum != comp.runs[-1]['checksum']: checksum = None
+
+        if checksum:
+            if verbose: print(f'Using checksum: {checksum}')
+            ohash = {o[checksum]: p for p,r,o in self.genItems('files')}
+            thash = {o[checksum]: p for p,r,o in comp.genItems('files')}
+            pick = lambda f: f # keep checksum
+        else:
+            if verbose: print('Not using checksum')
+            pick = lambda f: {k:f[k] for k in ('size', 'modified_gmt')}
+
+        deltas = []
+        for p in sorted(set(self.root) | set(comp.root)):
+            _, ofile = self.get(p) # discard run
+            _, tfile = comp.get(p) # discard run
+            d = {'path': p, 'origin': ofile, 'target': tfile}
+            if not isinstance(ofile, dict) or not isinstance(tfile, dict):
+                if ofile == tfile: continue # simple comparison for non-files
+            if not ofile:
+                if checksum and tfile[checksum] in ohash:
+                    d['origin_path'] = ohash[tfile[checksum]]
+            elif not tfile:
+                if checksum and ofile[checksum] in thash:
+                    d['target_path'] = thash[ofile[checksum]]
+            elif pick(ofile) == pick(tfile): continue # skip appending delta
+            deltas.append(d) # we got here, so there's a difference
+        return deltas
