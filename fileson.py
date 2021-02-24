@@ -12,12 +12,18 @@ class Fileson:
             }
 
     @classmethod
-    def load(cls, filename):
+    def load(cls, filename, runsep='~'):
+        if '~' in filename[1:]:
+            parts = filename.split(runsep)
+            filename, parent = runsep.join(parts[:-1]), int(filename[-1])
+        else: parent = None
         with open(filename, 'r', encoding='utf8') as fp:
             js = json.load(fp)
             if not 'runs' in js or not 'root' in js:
                 raise RuntimeError(f'{dbfile} does not seem to be Fileson database')
-            return cls(js['runs'], defaultdict(list, js['root']))
+            fs = cls(js['runs'], defaultdict(list, js['root']))
+            if parent: fs.revert(-parent)
+            return fs
 
     @classmethod
     def load_or_scan(cls, obj, **kwargs): # kwargs only passed to scan
@@ -54,6 +60,15 @@ class Fileson:
         if not run == -1: return self.root[path][-1]
         return next(t for t in self.root[path][::-1] if t[0] <= run)
 
+    def revert(self, run): # discard changes after <run>
+        if run < 0: run += len(self.runs)
+        if run < 0: raise RuntimeError('No such run!')
+        self.runs = self.runs[:run] # discard run history
+        for p in list(self.root):
+            a = self.root[p]
+            while a and a[-1][0] > run: a.pop()
+            if not a: del self.root[p]
+
     def genItems(self, *args):
         types = set()
         if 'all' in args or 'files' in args: types.add(type({}))
@@ -76,7 +91,6 @@ class Fileson:
                 if isinstance(o, dict) and checksum in o:
                     ccache[(make_key(p), o['modified_gmt'], o['size'])] = \
                         o[checksum]
-        #for p in ccache: print(p, ccache[p])
 
         missing = set(self.root) # remove paths as they are encountered
 
