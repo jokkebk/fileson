@@ -1,5 +1,6 @@
 import json, os, time
 from collections import defaultdict
+from typing import Any, Tuple, Generator
 
 from hash import sha_file
 
@@ -12,7 +13,7 @@ class Fileson:
             }
 
     @classmethod
-    def load(cls, filename, runsep='~'):
+    def load(cls: 'Fileson', filename: str, runsep: str='~') -> 'Fileson':
         if '~' in filename[1:]:
             parts = filename.split(runsep)
             filename, parent = runsep.join(parts[:-1]), int(filename[-1])
@@ -21,19 +22,19 @@ class Fileson:
             js = json.load(fp)
             if not all(k in js for k in ('runs', 'root', 'checksum')): raise \
                     RuntimeError(f"{filename} doesn't seem to be a Fileson DB")
-            fs = cls(js['runs'], defaultdict(list, js['root']), js['checksum'])
+            fs = cls(js['runs'], js['root'], js['checksum'])
             if parent: fs.revert(-parent)
             return fs
 
     @classmethod
-    def load_or_scan(cls, obj, **kwargs):
-        if os.path.isdir(obj):
+    def load_or_scan(cls: 'Fileson', db_or_dir: str, **kwargs) -> 'Fileson':
+        if os.path.isdir(db_or_dir):
             fs = cls(checksum=kwargs.get('checksum', None))
-            fs.scan(obj, **kwargs)
+            fs.scan(db_or_dir, **kwargs)
             return fs
-        else: return cls.load(obj)
+        else: return cls.load(db_or_dir)
 
-    def save(self, filename, pretty=False):
+    def save(self, filename: str, pretty: bool=False) -> None:
         js = {
                 'description': 'Fileson file database.',
                 'url': 'https://github.com/jokkebk/fileson.git',
@@ -45,24 +46,25 @@ class Fileson:
         with open(filename, 'w', encoding='utf8') as fp:
             json.dump(js, fp, indent=(2 if pretty else None), sort_keys=True)
 
-    def __init__(self, runs=None, root=None, checksum=None):
+    def __init__(self, runs: list=None, root: dict={}, checksum: str=None) -> None:
         self.checksum = checksum
         self.runs = runs or []
         # keys are paths, values are (run, type) tuples
-        self.root = root or defaultdict(list)
+        self.root = defaultdict(list, root)
 
-    def set(self, path, run, obj):
+    def set(self, path: str, run: int, obj) -> bool:
         prev = self.root[path][-1][1] if path in self.root else None
         if prev == obj: return False # unmodified
         self.root[path].append((run,obj)) # will become [run,obj] on save
         return True # modified
 
-    def get(self, path, run=None): # get current or given run state
+    def get(self, path: str, run: int=None) -> Tuple[int, Any]:
+        """Get current or given run state."""
         if not path in self.root: return (run, None)
         if not run == -1: return self.root[path][-1]
         return next(t for t in self.root[path][::-1] if t[0] <= run)
 
-    def revert(self, run): # discard changes after <run>
+    def revert(self, run: int) -> None: # discard changes after <run>
         if run < 0: run += len(self.runs)
         if run < 0: raise RuntimeError('No such run!')
         self.runs = self.runs[:run] # discard run history
@@ -71,7 +73,7 @@ class Fileson:
             while a and a[-1][0] > run: a.pop()
             if not a: del self.root[p]
 
-    def purge(self, run=-1): # discard inactive changes before <run>
+    def purge(self, run: int=-1) -> None: # discard inactive changes before <run>
         if run < 0: run += len(self.runs)
         for p in list(self.root):
             a = self.root[p]
@@ -81,7 +83,7 @@ class Fileson:
             else: del self.root[p] # remove node if only deleted
         self.runs = self.runs[run:]
 
-    def genItems(self, *args):
+    def genItems(self, *args: str) -> Generator[str, int, Any]:
         types = set()
         if 'all' in args or 'files' in args: types.add(type({}))
         if 'all' in args or 'dirs' in args: types.add(type('D'))
@@ -90,7 +92,7 @@ class Fileson:
             r,o = self.root[p][-1]
             if type(o) in types: yield(p,r,o)
 
-    def scan(self, directory, **kwargs):
+    def scan(self, directory: str, **kwargs) -> None:
         verbose = kwargs.get('verbose', 0)
         strict = kwargs.get('strict', False)
         make_key = lambda p: p if strict else p.split(os.sep)[-1]
@@ -152,7 +154,7 @@ class Fileson:
         # Mark missing elements as removed (if not already so)
         for p in missing: self.set(p, run, None) 
 
-    def diff(self, comp, verbose=False):
+    def diff(self, comp: 'Fileson', verbose: bool=False) -> list:
         if not self.runs or not comp.runs: raise RuntimeError(('Both '
             'fileson objects need runs to compare differences!'))
 

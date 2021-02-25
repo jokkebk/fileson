@@ -35,7 +35,7 @@ arg_adders = {
 'delta': lambda p: p.add_argument('delta', nargs='?',
     type=argparse.FileType('w'), default='-',
     help='filename for delta or - for stdout (default)'),
-'percent': lambda p: p.add_argument('-p', '--percent', type=int, default=None,
+'percent': lambda p: p.add_argument('percent', type=int,
     help='Percentage of checksums to check'),
 'run': lambda p: p.add_argument('-r', '--run', type=int, default=None,
     help='Run number, negative are relative to latest'),
@@ -104,6 +104,9 @@ stats.args = ['db_or_dir'] # args to add
 def checksum(args):
     """Change or re-run checksums for a Fileson DB."""
     fs = Fileson.load(args.dbfile)
+    if not fs.checksum:
+        print('No checksum in the DB!')
+        return;
     if args.verbose: print('Existing checksum', fs.checksum)
 
     if not args.dir:
@@ -129,7 +132,7 @@ def checksum(args):
             else:
                 print('FAIL', fp)
                 print('old', old, 'vs.', new, 'new')
-checksum.args = 'dbfile dir percent force verbose'.split() # args to add
+checksum.args = 'dbfile percent dir force verbose'.split() # args to add
 
 def copy(args):
     """Make a copy of (specified version of the) database."""
@@ -144,7 +147,7 @@ def scan(args):
     fs = Fileson.load(args.dbfile) if os.path.exists(args.dbfile) \
             else Fileson(checksum=args.checksum)
 
-    if args.checksum != fs.checksum:
+    if args.checksum and args.checksum != fs.checksum:
         print('Fileson DB has different checksum mode', fs.checksum)
         return
 
