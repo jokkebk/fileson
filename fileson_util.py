@@ -46,11 +46,9 @@ def duplicates(args):
 
     fs = Fileson.load_or_scan(args.db_or_dir, checksum=args.checksum)
     files = [(p,o) for p,r,o in fs.genItems('files') if o['size'] >= minsize]
-    checksum = fs.runs[-1]['checksum']
+    checksum = fs.checksum or 'size'
 
-    if not checksum:
-        print('No checksum, using file size!')
-        checksum = 'size'
+    if checksum == 'size': print('No checksum, using file size!')
         
     csums = defaultdict(list)
     for p,o in files: csums[o[checksum]].append(p)
@@ -83,8 +81,9 @@ diff.args = 'origin target delta verbose pretty checksum'.split() # args to add
 def stats(args):
     """Show statistics of a Fileson DB."""
     fs = Fileson.load_or_scan(args.db_or_dir)
-    print(len(fs.runs), 'runs', len(fs.root), 'paths')
-    for r in fs.runs: print('   ', r['date_gmt'], 'checksum', r['checksum'])
+    print(len(fs.runs), 'runs,', len(fs.root), 'paths, checksum', fs.checksum)
+    for r in fs.runs: print('   ', r['date_gmt'],
+            r.get('directory', 'no directory specified'))
 
     files = [i for i in fs.genItems('files')]
     dirs = [i for i in fs.genItems('dirs')]
@@ -107,18 +106,22 @@ copy.args = 'src dest force'.split() # args to add
 
 def scan(args):
     """Create fileson JSON file database."""
-    fs = Fileson.load(args.dbfile) if os.path.exists(args.dbfile) else Fileson()
+    fs = Fileson.load(args.dbfile) if os.path.exists(args.dbfile) \
+            else Fileson(checksum=args.checksum)
 
-    if not args.checksum and fs.runs and fs.runs[-1]['checksum']:
-        args.checksum = fs.runs[-1]['checksum']
-        print('No checksum specified, using', args.checksum, 'from DB')
+    if args.checksum != fs.checksum:
+        print('Fileson DB has different checksum mode', fs.checksum,
+                'migrate with "checksum" command first before scan!')
+        return
 
-    if not args.dir and fs.runs and fs.runs[-1]['directory']:
+    if not args.dir:
+        if not fs.runs:
+            print('No directory specified and none in DB!')
+            return
         args.dir = fs.runs[-1]['directory']
-        print('No directory specified, using', args.dir, 'from DB')
+        if args.verbose: print('Using', args.dir, 'from DB')
 
-    fs.scan(args.dir, checksum=args.checksum,
-            verbose=args.verbose, strict=args.strict)
+    fs.scan(args.dir, verbose=args.verbose, strict=args.strict)
     fs.save(args.dbfile, pretty=args.pretty)
 scan.args = 'dbfile dir checksum pretty strict verbose'.split() # args to add
 

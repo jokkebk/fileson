@@ -19,16 +19,16 @@ class Fileson:
         else: parent = None
         with open(filename, 'r', encoding='utf8') as fp:
             js = json.load(fp)
-            if not 'runs' in js or not 'root' in js:
-                raise RuntimeError(f'{dbfile} does not seem to be Fileson database')
-            fs = cls(js['runs'], defaultdict(list, js['root']))
+            if not all(k in js for k in ('runs', 'root', 'checksum')): raise \
+                    RuntimeError(f"{filename} doesn't seem to be a Fileson DB")
+            fs = cls(js['runs'], defaultdict(list, js['root']), js['checksum'])
             if parent: fs.revert(-parent)
             return fs
 
     @classmethod
-    def load_or_scan(cls, obj, **kwargs): # kwargs only passed to scan
+    def load_or_scan(cls, obj, **kwargs):
         if os.path.isdir(obj):
-            fs = cls()
+            fs = cls(checksum=kwargs.get('checksum', None))
             fs.scan(obj, **kwargs)
             return fs
         else: return cls.load(obj)
@@ -37,14 +37,16 @@ class Fileson:
         js = {
                 'description': 'Fileson file database.',
                 'url': 'https://github.com/jokkebk/fileson.git',
-                'version': '0.1.0',
+                'version': '0.1.1',
                 'runs': self.runs,
+                'checksum': self.checksum,
                 'root': self.root
                 }
         with open(filename, 'w', encoding='utf8') as fp:
             json.dump(js, fp, indent=(2 if pretty else None), sort_keys=True)
 
-    def __init__(self, runs=None, root=None):
+    def __init__(self, runs=None, root=None, checksum=None):
+        self.checksum = checksum
         self.runs = runs or []
         # keys are paths, values are (run, type) tuples
         self.root = root or defaultdict(list)
@@ -89,24 +91,22 @@ class Fileson:
             if type(o) in types: yield(p,r,o)
 
     def scan(self, directory, **kwargs):
-        checksum = kwargs.get('checksum', None)
         verbose = kwargs.get('verbose', 0)
         strict = kwargs.get('strict', False)
         make_key = lambda p: p if strict else p.split(os.sep)[-1]
         
         ccache = {}
-        if self.runs and checksum:
+        if self.runs and self.checksum:
             for p in self.root:
                 r, o = self.root[p][-1]
-                if isinstance(o, dict) and checksum in o:
+                if isinstance(o, dict) and self.checksum in o:
                     ccache[(make_key(p), o['modified_gmt'], o['size'])] = \
-                        o[checksum]
+                        o[self.checksum]
 
         missing = set(self.root) # remove paths as they are encountered
 
-        self.runs.append({'checksum': checksum,
-            'date_gmt': time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime()),
-            'verbose': verbose, 'strict': strict, 'directory': directory })
+        self.runs.append({'directory': directory,
+            'date_gmt': time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())})
 
         run = len(self.runs)
 
@@ -130,12 +130,12 @@ class Fileson:
                     'modified_gmt': modTime
                 }
 
-                if checksum:
+                if self.checksum:
                     key = (make_key(rpath), modTime, size)
-                    if key in ccache: f[checksum] = ccache[key]
+                    if key in ccache: f[self.checksum] = ccache[key]
                     else:
-                        if verbose >= 2: print(checksum, rpath)
-                        f[checksum] = Fileson.summer[checksum](fpath, f)
+                        if verbose >= 2: print(self.checksum, rpath)
+                        f[self.checksum] = Fileson.summer[self.checksum](fpath, f)
 
                 if self.set(rpath, run, f): pass # print('modified', rpath)
                 missing.discard(rpath)
@@ -156,13 +156,12 @@ class Fileson:
         if not self.runs or not comp.runs: raise RuntimeError(('Both '
             'fileson objects need runs to compare differences!'))
 
-        checksum = self.runs[-1]['checksum']
-        if checksum != comp.runs[-1]['checksum']: checksum = None
+        cs = self.checksum if self.checksum == comp.checksum else None
 
-        if checksum:
-            if verbose: print(f'Using checksum: {checksum}')
-            ohash = {o[checksum]: p for p,r,o in self.genItems('files')}
-            thash = {o[checksum]: p for p,r,o in comp.genItems('files')}
+        if cs:
+            if verbose: print(f'Using checksum: {cs}')
+            ohash = {o[cs]: p for p,r,o in self.genItems('files')}
+            thash = {o[cs]: p for p,r,o in comp.genItems('files')}
             pick = lambda f: f # keep checksum
         else:
             if verbose: print('Not using checksum')
@@ -176,11 +175,11 @@ class Fileson:
             if p == 'some.zip': print(d)
             if not ofile and not tfile: continue
             elif not ofile:
-                if checksum and isinstance(tfile, dict) and tfile[checksum] in ohash:
-                    d['origin_path'] = ohash[tfile[checksum]]
+                if cs and isinstance(tfile, dict) and tfile[cs] in ohash:
+                    d['origin_path'] = ohash[tfile[cs]]
             elif not tfile:
-                if checksum and isinstance(ofile, dict) and ofile[checksum] in thash:
-                    d['target_path'] = thash[ofile[checksum]]
+                if cs and isinstance(ofile, dict) and ofile[cs] in thash:
+                    d['target_path'] = thash[ofile[cs]]
             elif isinstance(ofile, dict) and isinstance(tfile, dict): # files
                 if pick(ofile) == pick(tfile): continue # skip appending delta
             elif ofile == tfile: continue # simple comparison for non-files
