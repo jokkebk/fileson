@@ -4,15 +4,24 @@ from fileson import Fileson
 from crypt import keygen as kg, AESFile
 import argparse, os, sys, json, signal, time, hashlib, inspect
 
+# Return key or if a filename, its contents
+def key_or_file(key):
+    if os.path.exists(key):
+        with open(key, 'r') as f: key = ''.join(f.read().split())
+    return bytes.fromhex(key)
+
 # These are the different argument types that can be added to a command
 arg_adders = {
 'password': lambda p: p.add_argument('password', type=str, help='Password'),
 'salt': lambda p: p.add_argument('salt', type=str, help='Salt'),
 'input': lambda p: p.add_argument('input', type=str, help='Input file'),
 'output': lambda p: p.add_argument('output', type=str, help='Output file'),
-'key': lambda p: p.add_argument('key', type=str, help='Encryption/decryption key in hex format'),
-'iterations': lambda p: p.add_argument('-i', '--iterations', type=str, default='1M',
-            help='PBKDF2 iterations (default 1M)'),
+'key': lambda p: p.add_argument('key', type=str,
+    help='Key in hex format or filename of the keyfile'),
+'keyfile': lambda p: p.add_argument('-k', '--keyfile', type=str,
+    help='Key in hex format or filename of the keyfile'),
+'iterations': lambda p: p.add_argument('-i', '--iterations', type=str,
+    default='1M', help='PBKDF2 iterations (default 1M)'),
 'dbfile': lambda p: p.add_argument('dbfile', type=str,
     help='Database file (JSON format)'),
 'logfile': lambda p: p.add_argument('logfile', type=str,
@@ -34,7 +43,8 @@ def keygen(args):
     """Create a 32 byte key for AES256 encryption with a password and salt."""
     iterations = int(args.iterations.replace('M', '000k').replace('k', '000'))
     start = time.time()
-    print(kg(args.password, args.salt, iterations).hex())
+    keyhex = kg(args.password, args.salt, iterations).hex()
+    print(keyhex)
     if args.verbose: print('Generating that took %.3f seconds' % (time.time()-start))
 keygen.args = 'password salt iterations verbose'.split()
 
@@ -51,7 +61,7 @@ def cryptfile(infile, outfile, verbose=False):
 def encrypt(args):
     if os.path.exists(args.output) and not 'y' in input('Output exists! '
             'Do you wish to overwrite? [y/n] '): return
-    with AESFile(args.input, 'rb', bytes.fromhex(args.key)) as fin:
+    with AESFile(args.input, 'rb', key_or_file(args.key)) as fin:
         with open(args.output, 'wb') as fout:
             cryptfile(fin, fout, verbose=args.verbose)
 encrypt.args = 'input output key verbose force'.split()
@@ -60,12 +70,12 @@ def decrypt(args):
     if os.path.exists(args.output) and not 'y' in input('Output exists! '
             'Do you wish to overwrite? [y/n] '): return
     with open(args.input, 'rb') as fin:
-        with AESFile(args.output, 'wb', bytes.fromhex(args.key)) as fout:
+        with AESFile(args.output, 'wb', key_or_file(args.key)) as fout:
             cryptfile(fin, fout, verbose=args.verbose)
 decrypt.args = 'input output key verbose force'.split()
 
-def full(args):
-    """Full backup based on Fileson state."""
+def run(args):
+    """Perform backup based on latest Fileson DB state."""
     fs = Fileson.load(args.dbfile)
     files = [(p,o) for p,r,o in fs.genItems('files')]
 
@@ -78,30 +88,10 @@ def full(args):
         if o['sha1'] in shafile:
             if args.verbose: print('Skipping duplicate', p)
             continue
-        if args.verbose: print('Backup', p, o['sha1'])
-full.args = 'dbfile verbose'.split() # args to add
-
-# Function per command
-def inc(args):
-    """Incremental backup based on Fileson state."""
-    fs = Fileson.load(args.dbfile)
-    run = len(fs.runs)    
-    files = [(p,o) for p,r,o in fs.genItems('files') if r==run]
-
-    if not files: return
-    if not fs.runs or fs.runs[-1]['checksum'] != 'sha1':
-        print('Backup only works with full sha1 hash. Safety first.')
-        return
-
-    seen = set()
-    for p,o in files:
-        sha1 = o['sha1']
-        if sha1 in seen:
-            if args.verbose: print('Skipping duplicate', p)
-            continue
-        if args.verbose: print('Backup', p, sha1)
-        seen.add(sha1)
-inc.args = 'dbfile verbose'.split() # args to add
+        if args.verbose:
+            fname = p.split(os.sep)[-1]
+            print('Backup', fname, o['sha1'])
+run.args = 'dbfile logfile destination keyfile verbose'.split() # args to add
 
 if __name__ == "__main__":
     # register signal handler to close any open log files
