@@ -47,7 +47,8 @@
 <p>Uses CTR mode with 16 byte initial value (iv). When reading,
 returns the iv first, then encrypted payload. On writing, first
 16 bytes are assumed to contain the iv.</p>
-<p>Does the bare minimum, you may get errors if not careful.</p>
+<p>Does the bare minimum, you may get errors if not careful. See
+Python’s <a class="reference external" href="https://docs.python.org/3/library/io.html#io.IOBase" title="(in Python v3.9)"><code class="xref py py-class docutils literal"><span class="pre">io.IOBase</span></code></a> for details on most methods.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -55,7 +56,7 @@ returns the iv first, then encrypted payload. On writing, first
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
 <li><strong>filename</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a>) – File to open for reading (encrypt on the fly)
 or writing (decrypt on the fly)</li>
-<li><strong>mode</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a>) – Either ‘rb’ or ‘wb’, just like with Python <cite>open</cite></li>
+<li><strong>mode</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a>) – Either ‘rb’ or ‘wb’, just like with <a class="reference external" href="https://docs.python.org/3/library/io.html#io.open" title="(in Python v3.9)"><code class="xref py py-func docutils literal"><span class="pre">io.open()</span></code></a></li>
 <li><strong>key</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.9)"><em>bytes</em></a>) – Encryption/decryption key (32 bytes for AES256)</li>
 <li><strong>iv</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.9)"><em>bytes</em></a>) – Initial value (16 bytes), if not set uses os.urandom</li>
 </ul>
@@ -71,19 +72,19 @@ or writing (decrypt on the fly)</li>
 </table>
 <dl class="method">
 <dt id="crypt.AESFile.close">
-<code class="descname">close</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/crypt.html#AESFile.close"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#crypt.AESFile.close" title="Permalink to this definition">¶</a></dt>
+<code class="descname">close</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; None<a class="reference internal" href="_modules/crypt.html#AESFile.close"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#crypt.AESFile.close" title="Permalink to this definition">¶</a></dt>
 <dd><p>Close the file stream.</p>
 </dd></dl>
 
 <dl class="method">
 <dt id="crypt.AESFile.read">
-<code class="descname">read</code><span class="sig-paren">(</span><em>size=-1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/crypt.html#AESFile.read"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#crypt.AESFile.read" title="Permalink to this definition">¶</a></dt>
+<code class="descname">read</code><span class="sig-paren">(</span><em>size: int = -1</em><span class="sig-paren">)</span> &#x2192; bytes<a class="reference internal" href="_modules/crypt.html#AESFile.read"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#crypt.AESFile.read" title="Permalink to this definition">¶</a></dt>
 <dd><p>Read data and encrypt on the fly. First 16 bytes returned are iv.</p>
 </dd></dl>
 
 <dl class="method">
 <dt id="crypt.AESFile.seek">
-<code class="descname">seek</code><span class="sig-paren">(</span><em>offset</em>, <em>whence=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/crypt.html#AESFile.seek"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#crypt.AESFile.seek" title="Permalink to this definition">¶</a></dt>
+<code class="descname">seek</code><span class="sig-paren">(</span><em>offset: int</em>, <em>whence: int = 0</em><span class="sig-paren">)</span> &#x2192; None<a class="reference internal" href="_modules/crypt.html#AESFile.seek"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#crypt.AESFile.seek" title="Permalink to this definition">¶</a></dt>
 <dd><p>Seek to given position.</p>
 <p>Only offset 0 is supported (relative to start, current position
 or end depending on whence parameter). Otherwise dummy-encrypting
@@ -107,7 +108,7 @@ stuff might get really slow.</p>
 
 <dl class="method">
 <dt id="crypt.AESFile.tell">
-<code class="descname">tell</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/crypt.html#AESFile.tell"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#crypt.AESFile.tell" title="Permalink to this definition">¶</a></dt>
+<code class="descname">tell</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; int<a class="reference internal" href="_modules/crypt.html#AESFile.tell"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#crypt.AESFile.tell" title="Permalink to this definition">¶</a></dt>
 <dd><p>Tell the current position.</p>
 <p>Note that when reading, goes 16 bytes further than the file
 being read, due to the fact that iv is injected to start.</p>
@@ -115,7 +116,7 @@ being read, due to the fact that iv is injected to start.</p>
 
 <dl class="method">
 <dt id="crypt.AESFile.write">
-<code class="descname">write</code><span class="sig-paren">(</span><em>data</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/crypt.html#AESFile.write"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#crypt.AESFile.write" title="Permalink to this definition">¶</a></dt>
+<code class="descname">write</code><span class="sig-paren">(</span><em>data: bytes</em><span class="sig-paren">)</span> &#x2192; int<a class="reference internal" href="_modules/crypt.html#AESFile.write"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#crypt.AESFile.write" title="Permalink to this definition">¶</a></dt>
 <dd><p>Write data and decrypt on the fly. First 16 bytes absorbed as iv.</p>
 </dd></dl>
 

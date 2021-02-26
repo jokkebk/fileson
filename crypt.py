@@ -24,12 +24,13 @@ class AESFile:
     returns the iv first, then encrypted payload. On writing, first
     16 bytes are assumed to contain the iv.
 
-    Does the bare minimum, you may get errors if not careful.
+    Does the bare minimum, you may get errors if not careful. See
+    Python's :class:`io.IOBase` for details on most methods.
 
     Args:
         filename (str): File to open for reading (encrypt on the fly)
             or writing (decrypt on the fly)
-        mode (str): Either 'rb' or 'wb', just like with Python `open`
+        mode (str): Either 'rb' or 'wb', just like with :func:`io.open`
         key (bytes): Encryption/decryption key (32 bytes for AES256)
         iv (bytes): Initial value (16 bytes), if not set uses os.urandom
 
@@ -55,7 +56,13 @@ class AESFile:
             self.__initAES()
         else: self.iv = bytearray(16)
 
-    def write(self, data):
+    def __enter__(self) -> None:
+        return self
+
+    def __exit__(self, type, value, traceback) -> None:
+        self.fp.close()
+
+    def write(self, data : bytes) -> int:
         """Write data and decrypt on the fly. First 16 bytes absorbed as iv."""
         datalen = len(data)
         if self.pos < 16:
@@ -67,7 +74,7 @@ class AESFile:
         if data: self.pos += self.fp.write(self.obj.decrypt(data))
         return datalen
 
-    def read(self, size=-1):
+    def read(self, size: int=-1) -> bytes:
         """Read data and encrypt on the fly. First 16 bytes returned are iv."""
         ivpart = b''
         if self.pos < 16:
@@ -79,7 +86,7 @@ class AESFile:
         self.pos += len(ivpart) + len(enpart)
         return ivpart + enpart
 
-    def tell(self):
+    def tell(self) -> int:
         """Tell the current position.
 
         Note that when reading, goes 16 bytes further than the file
@@ -88,7 +95,7 @@ class AESFile:
         return self.pos
 
     # only in read mode (encrypting)
-    def seek(self, offset, whence=0): # enough seek to satisfy AWS boto3
+    def seek(self, offset: int, whence: int=0) -> None:
         """Seek to given position.
 
         Only offset 0 is supported (relative to start, current position
@@ -111,6 +118,6 @@ class AESFile:
         elif whence==2: # relative to file end, offset=0
             self.pos = 16 + self.fp.tell()
 
-    def close(self):
+    def close(self) -> None:
         """Close the file stream."""
         self.fp.close()

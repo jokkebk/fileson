@@ -64,12 +64,13 @@
 <span class="sd">    returns the iv first, then encrypted payload. On writing, first</span>
 <span class="sd">    16 bytes are assumed to contain the iv.</span>
 
-<span class="sd">    Does the bare minimum, you may get errors if not careful.</span>
+<span class="sd">    Does the bare minimum, you may get errors if not careful. See</span>
+<span class="sd">    Python&#39;s :class:`io.IOBase` for details on most methods.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        filename (str): File to open for reading (encrypt on the fly)</span>
 <span class="sd">            or writing (decrypt on the fly)</span>
-<span class="sd">        mode (str): Either &#39;rb&#39; or &#39;wb&#39;, just like with Python `open`</span>
+<span class="sd">        mode (str): Either &#39;rb&#39; or &#39;wb&#39;, just like with :func:`io.open`</span>
 <span class="sd">        key (bytes): Encryption/decryption key (32 bytes for AES256)</span>
 <span class="sd">        iv (bytes): Initial value (16 bytes), if not set uses os.urandom</span>
 
@@ -95,7 +96,13 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">__initAES</span><span class="p">()</span>
         <span class="k">else</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">iv</span> <span class="o">=</span> <span class="nb">bytearray</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span>
 
-<div class="viewcode-block" id="AESFile.write"><a class="viewcode-back" href="../crypt.html#crypt.AESFile.write">[docs]</a>    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">type</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">traceback</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fp</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+<div class="viewcode-block" id="AESFile.write"><a class="viewcode-back" href="../crypt.html#crypt.AESFile.write">[docs]</a>    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span> <span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
         <span class="sd">&quot;&quot;&quot;Write data and decrypt on the fly. First 16 bytes absorbed as iv.&quot;&quot;&quot;</span>
         <span class="n">datalen</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos</span> <span class="o">&lt;</span> <span class="mi">16</span><span class="p">:</span>
@@ -107,7 +114,7 @@
         <span class="k">if</span> <span class="n">data</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fp</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">obj</span><span class="o">.</span><span class="n">decrypt</span><span class="p">(</span><span class="n">data</span><span class="p">))</span>
         <span class="k">return</span> <span class="n">datalen</span></div>
 
-<div class="viewcode-block" id="AESFile.read"><a class="viewcode-back" href="../crypt.html#crypt.AESFile.read">[docs]</a>    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="o">=-</span><span class="mi">1</span><span class="p">):</span>
+<div class="viewcode-block" id="AESFile.read"><a class="viewcode-back" href="../crypt.html#crypt.AESFile.read">[docs]</a>    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="p">:</span> <span class="nb">int</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
         <span class="sd">&quot;&quot;&quot;Read data and encrypt on the fly. First 16 bytes returned are iv.&quot;&quot;&quot;</span>
         <span class="n">ivpart</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">&#39;&#39;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos</span> <span class="o">&lt;</span> <span class="mi">16</span><span class="p">:</span>
@@ -119,7 +126,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">pos</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ivpart</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">enpart</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">ivpart</span> <span class="o">+</span> <span class="n">enpart</span></div>
 
-<div class="viewcode-block" id="AESFile.tell"><a class="viewcode-back" href="../crypt.html#crypt.AESFile.tell">[docs]</a>    <span class="k">def</span> <span class="nf">tell</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="AESFile.tell"><a class="viewcode-back" href="../crypt.html#crypt.AESFile.tell">[docs]</a>    <span class="k">def</span> <span class="nf">tell</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
         <span class="sd">&quot;&quot;&quot;Tell the current position.</span>
 
 <span class="sd">        Note that when reading, goes 16 bytes further than the file</span>
@@ -128,7 +135,7 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos</span></div>
 
     <span class="c1"># only in read mode (encrypting)</span>
-<div class="viewcode-block" id="AESFile.seek"><a class="viewcode-back" href="../crypt.html#crypt.AESFile.seek">[docs]</a>    <span class="k">def</span> <span class="nf">seek</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span> <span class="n">whence</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span> <span class="c1"># enough seek to satisfy AWS boto3</span>
+<div class="viewcode-block" id="AESFile.seek"><a class="viewcode-back" href="../crypt.html#crypt.AESFile.seek">[docs]</a>    <span class="k">def</span> <span class="nf">seek</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">whence</span><span class="p">:</span> <span class="nb">int</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="sd">&quot;&quot;&quot;Seek to given position.</span>
 
 <span class="sd">        Only offset 0 is supported (relative to start, current position</span>
@@ -151,7 +158,7 @@
         <span class="k">elif</span> <span class="n">whence</span><span class="o">==</span><span class="mi">2</span><span class="p">:</span> <span class="c1"># relative to file end, offset=0</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">pos</span> <span class="o">=</span> <span class="mi">16</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">fp</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span></div>
 
-<div class="viewcode-block" id="AESFile.close"><a class="viewcode-back" href="../crypt.html#crypt.AESFile.close">[docs]</a>    <span class="k">def</span> <span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="AESFile.close"><a class="viewcode-back" href="../crypt.html#crypt.AESFile.close">[docs]</a>    <span class="k">def</span> <span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="sd">&quot;&quot;&quot;Close the file stream.&quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">fp</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div></div>
 </pre></div>
