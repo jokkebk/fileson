@@ -3,21 +3,45 @@ from Crypto.Cipher import AES
 from Crypto.Util import Counter
 import hashlib, os
 
+def keygen(password: str, salt: str, iterations: int=10**6) -> bytes:
+    """Generate a 32 byte key from password and salt using PBKDF2.
+
+    Args:
+        password (str): Password string (encoded to utf8)
+        salt (str): Salt (encoded to utf8)
+        iterations (int): Number of iterations, 1M is the default
+
+    Returns:
+        bytes: 32 byte key
+    """
+    return hashlib.pbkdf2_hmac('sha256', password.encode('utf8'),
+        salt.encode('utf8'), iterations)
+
 class AESFile:
     """On-the-fly AES encryption (on read) and decryption (on write).
-    When reading, returns 16 bytes of iv first, then encrypted payload.
-    On writing, first 16 bytes are assumed to contain the iv.
-    Does the bare minimum, you may get errors if not careful."""
-    @staticmethod
-    def key(passStr, saltStr, iterations=100000):
-        return hashlib.pbkdf2_hmac('sha256', passStr.encode('utf8'),
-            saltStr.encode('utf8'), iterations)
 
-    def initAES(self):
+    Uses CTR mode with 16 byte initial value (iv). When reading,
+    returns the iv first, then encrypted payload. On writing, first
+    16 bytes are assumed to contain the iv.
+
+    Does the bare minimum, you may get errors if not careful.
+
+    Args:
+        filename (str): File to open for reading (encrypt on the fly)
+            or writing (decrypt on the fly)
+        mode (str): Either 'rb' or 'wb', just like with Python `open`
+        key (bytes): Encryption/decryption key (32 bytes for AES256)
+        iv (bytes): Initial value (16 bytes), if not set uses os.urandom
+
+    Returns:
+        AESFile: File-like object
+    """
+    def __initAES(self) -> None:
         self.obj = AES.new(self.key, AES.MODE_CTR, counter=Counter.new(
             128, initial_value=int.from_bytes(self.iv, byteorder='big')))
 
-    def __init__(self, filename, mode, key, iv=None):
+    def __init__(self, filename: str, mode: str, key: bytes, iv: bytes=None) -> None:
+        """Init the class. Documented in class docstring."""
         if not mode in ('wb', 'rb'): 
             raise RuntimeError('Only rb and wb modes supported!')
 
@@ -28,21 +52,23 @@ class AESFile:
 
         if mode == 'rb':
             self.iv = iv or os.urandom(16)
-            self.initAES()
+            self.__initAES()
         else: self.iv = bytearray(16)
 
     def write(self, data):
+        """Write data and decrypt on the fly. First 16 bytes absorbed as iv."""
         datalen = len(data)
         if self.pos < 16:
             ivlen = min(16-self.pos, datalen)
             self.iv[self.pos:self.pos+ivlen] = data[:ivlen]
             self.pos += ivlen
-            if self.pos == 16: self.initAES() # ready to init now
+            if self.pos == 16: self.__initAES() # ready to init now
             data = data[ivlen:]
         if data: self.pos += self.fp.write(self.obj.decrypt(data))
         return datalen
 
     def read(self, size=-1):
+        """Read data and encrypt on the fly. First 16 bytes returned are iv."""
         ivpart = b''
         if self.pos < 16:
             if size == -1: ivpart = self.iv
@@ -53,55 +79,38 @@ class AESFile:
         self.pos += len(ivpart) + len(enpart)
         return ivpart + enpart
 
-    def tell(self): return self.pos
+    def tell(self):
+        """Tell the current position.
+
+        Note that when reading, goes 16 bytes further than the file
+        being read, due to the fact that iv is injected to start.
+        """
+        return self.pos
 
     # only in read mode (encrypting)
     def seek(self, offset, whence=0): # enough seek to satisfy AWS boto3
+        """Seek to given position.
+
+        Only offset 0 is supported (relative to start, current position
+        or end depending on whence parameter). Otherwise dummy-encrypting
+        stuff might get really slow.
+
+        Args:
+            offset (int): Offset, has to be 0
+            whence (int): 0,1,2 for absolute,relative,end-based
+
+        Raises:
+            RuntimeError: If offset is nonzero
+        """
         if offset: raise RuntimeError('Only seek(0, whence) supported')
 
         self.fp.seek(offset, whence) # offset=0 works for all whences
         if whence==0: # absolute positioning, offset=0
             self.pos = 0
-            self.initAES()
+            self.__initAES()
         elif whence==2: # relative to file end, offset=0
             self.pos = 16 + self.fp.tell()
 
-    def close(self): self.fp.close()
-
-if __name__ == "__main__":
-    import argparse, time
-
-    parser = argparse.ArgumentParser(description='Encrypt/decrypt files')
-    parser.add_argument('mode', type=str, choices=['encrypt','decrypt'], help='Mode')
-    parser.add_argument('input', type=str, help='Input file')
-    parser.add_argument('output', type=str, help='Output file')
-    parser.add_argument('password', type=str, help='Password')
-    parser.add_argument('salt', type=str, help='Salt')
-    parser.add_argument('-i', '--iterations', type=int, default=100000,
-            help='PBKDF2 iterations (default 100000)')
-    args = parser.parse_args()
-
-    key = AESFile.key(args.password, args.salt, args.iterations)
-
-    startTime, bs = time.time(), 0
-
-    if args.mode == 'encrypt':
-        infile = AESFile(args.input, 'rb', key)
-        outfile = open(args.output, 'wb')
-    else:
-        infile = open(args.input, 'rb')
-        outfile = AESFile(args.output, 'wb', key)
-
-    while True:
-        data = infile.read(65536)
-        if not data: break
-        outfile.write(data)
-        bs += len(data)
-
-    infile.close()
-    outfile.close()
-
-    secs = time.time() - startTime
-
-    print(f'{bs} bytes {args.mode}ed', 'in %.1f seconds, %.2f GB/s' %
-            (secs, bs/2**30/secs))
+    def close(self):
+        """Close the file stream."""
+        self.fp.close()

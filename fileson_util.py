@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from collections import defaultdict
 from fileson import Fileson
-import argparse, os, sys, json, random
+import argparse, os, sys, json, random, inspect
 
 # These are the different argument types that can be added to a command
 arg_adders = {
@@ -162,17 +162,19 @@ def scan(args):
     fs.save(args.dbfile, pretty=args.pretty)
 scan.args = 'dbfile dir checksum pretty strict verbose'.split() # args to add
 
-# create the top-level parser
-parser = argparse.ArgumentParser(description='Fileson database utilities')
-subparsers = parser.add_subparsers(help='sub-command help')
+if __name__ == "__main__":
+    # create the top-level parser
+    parser = argparse.ArgumentParser(description='Fileson database utilities')
+    subparsers = parser.add_subparsers(help='sub-command help')
 
-# add commands using function metadata and properties
-for cmd in (checksum, copy, diff, duplicates, purge, scan, stats):
-    cmd.parser = subparsers.add_parser(cmd.__name__, description=cmd.__doc__)
-    for argname in cmd.args: arg_adders[argname](cmd.parser)
-    cmd.parser.set_defaults(func=cmd)
+    # add commands using function metadata and properties
+    for name,cmd in inspect.getmembers(sys.modules[__name__]):
+        if inspect.isfunction(cmd) and hasattr(cmd, 'args'):
+            cmd.parser = subparsers.add_parser(cmd.__name__, description=cmd.__doc__)
+            for argname in cmd.args: arg_adders[argname](cmd.parser)
+            cmd.parser.set_defaults(func=cmd)
 
-# parse the args and call whatever function was selected
-args = parser.parse_args()
-if len(sys.argv)==1: parser.print_help(sys.stderr)
-else: args.func(args)
+    # parse the args and call whatever function was selected
+    args = parser.parse_args()
+    if len(sys.argv)==1: parser.print_help(sys.stderr)
+    else: args.func(args)

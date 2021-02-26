@@ -1,0 +1,315 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Fileson module &#8212; fileson 0.1 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Crypt module" href="crypt.html" />
+    <link rel="prev" title="Welcome to fileson’s documentation!" href="index.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-fileson">
+<span id="fileson-module"></span><h1>Fileson module<a class="headerlink" href="#module-fileson" title="Permalink to this headline">¶</a></h1>
+<p>Fileson class to manipulate Fileson databases.</p>
+<dl class="class">
+<dt id="fileson.Fileson">
+<em class="property">class </em><code class="descclassname">fileson.</code><code class="descname">Fileson</code><span class="sig-paren">(</span><em>runs: list = None</em>, <em>root: dict = {}</em>, <em>checksum: str = None</em><span class="sig-paren">)</span> &#x2192; None<a class="reference internal" href="_modules/fileson.html#Fileson"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fileson.Fileson" title="Permalink to this definition">¶</a></dt>
+<dd><p>File database with versioning support in JSON format.</p>
+<p>Normally only checksum is used, the other two (optional) parameters
+are mainly for <a class="reference internal" href="#fileson.Fileson.load" title="fileson.Fileson.load"><code class="xref py py-meth docutils literal"><span class="pre">load()</span></code></a> and <a class="reference internal" href="#fileson.Fileson.load_or_scan" title="fileson.Fileson.load_or_scan"><code class="xref py py-meth docutils literal"><span class="pre">load_or_scan()</span></code></a> methods.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>runs</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.9)"><em>list</em></a>) – A list of previous runs</li>
+<li><strong>root</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.9)"><em>dict</em></a>) – Contents of previous run</li>
+<li><strong>checksum</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a>) – Checksum name or None</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="fileson.Fileson.diff">
+<code class="descname">diff</code><span class="sig-paren">(</span><em>comp: fileson.Fileson</em>, <em>verbose: bool = False</em><span class="sig-paren">)</span> &#x2192; list<a class="reference internal" href="_modules/fileson.html#Fileson.diff"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fileson.Fileson.diff" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compare to another Fileson object and report differences.</p>
+<p>Returned delta structure uses ‘origin’ to refer to self, and
+‘target’ to refered to the other Fileson object being compared.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>comp</strong> (<a class="reference internal" href="#fileson.Fileson" title="fileson.Fileson"><em>Fileson</em></a>) – Target object to compare against</li>
+<li><strong>verbose</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.9)"><em>bool</em></a>) – Set to True to print out stuff</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">A list of dict objects outlining the differences.</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.9)">list</a></p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><p class="first last"><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.9)"><code class="xref py py-exc docutils literal"><span class="pre">RuntimeError</span></code></a> – If one of the objects is empty</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="fileson.Fileson.genItems">
+<code class="descname">genItems</code><span class="sig-paren">(</span><em>*args: str</em><span class="sig-paren">)</span> &#x2192; typing.Generator[[str, int], typing.Any]<a class="reference internal" href="_modules/fileson.html#Fileson.genItems"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fileson.Fileson.genItems" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generate path,run,obj tuples of contents.</p>
+<p>You should specify types of objects to return: ‘files’,
+‘dirs’, ‘deletes’ or ‘all’ as a shorthand for everything.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Yields:</th><td class="field-body"><em>*args (str)</em> – Types of objects to generate, see above</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="fileson.Fileson.get">
+<code class="descname">get</code><span class="sig-paren">(</span><em>path: str</em>, <em>run: int = None</em><span class="sig-paren">)</span> &#x2192; typing.Tuple[int, typing.Any]<a class="reference internal" href="_modules/fileson.html#Fileson.get"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fileson.Fileson.get" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get current or given run state.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>path</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a>) – Object path</li>
+<li><strong>run</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a>) – Run number (default is latest node)</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><p class="first last"><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.9)"><code class="xref py py-exc docutils literal"><span class="pre">RuntimeError</span></code></a> – If the run parameter doesn’t make sense</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="fileson.Fileson.load">
+<em class="property">classmethod </em><code class="descname">load</code><span class="sig-paren">(</span><em>filename: str</em>, <em>runsep: str = '~'</em><span class="sig-paren">)</span> &#x2192; fileson.Fileson<a class="reference internal" href="_modules/fileson.html#Fileson.load"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fileson.Fileson.load" title="Permalink to this definition">¶</a></dt>
+<dd><p>Load Fileson database from file.</p>
+<p>Loading supports a file.fson~1 notation to refer to previous version
+of the database.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>filename</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a>) – Filename</li>
+<li><strong>runsep</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a>) – Separator to use for versioning, default is ~</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">New class instance</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first"><a class="reference internal" href="#fileson.Fileson" title="fileson.Fileson">Fileson</a></p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><p class="first last"><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.9)"><code class="xref py py-exc docutils literal"><span class="pre">RuntimeError</span></code></a> – On loading issues.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="fileson.Fileson.load_or_scan">
+<em class="property">classmethod </em><code class="descname">load_or_scan</code><span class="sig-paren">(</span><em>db_or_dir: str</em>, <em>**kwargs</em><span class="sig-paren">)</span> &#x2192; fileson.Fileson<a class="reference internal" href="_modules/fileson.html#Fileson.load_or_scan"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fileson.Fileson.load_or_scan" title="Permalink to this definition">¶</a></dt>
+<dd><p>Load Fileson database or create one by scanning a directory.</p>
+<p>This basically calls <a class="reference internal" href="#fileson.Fileson.load" title="fileson.Fileson.load"><code class="xref py py-meth docutils literal"><span class="pre">load()</span></code></a> or creates a new
+instance and uses <a class="reference internal" href="#fileson.Fileson.scan" title="fileson.Fileson.scan"><code class="xref py py-meth docutils literal"><span class="pre">scan()</span></code></a> after it.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>db_or_dir</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a>) – Database or directory name</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">New class instance</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference internal" href="#fileson.Fileson" title="fileson.Fileson">Fileson</a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="fileson.Fileson.purge">
+<code class="descname">purge</code><span class="sig-paren">(</span><em>run: int = -1</em><span class="sig-paren">)</span> &#x2192; None<a class="reference internal" href="_modules/fileson.html#Fileson.purge"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fileson.Fileson.purge" title="Permalink to this definition">¶</a></dt>
+<dd><p>Purge history data.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>run</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a>) – Run number, use -1 for previous (default)</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="fileson.Fileson.revert">
+<code class="descname">revert</code><span class="sig-paren">(</span><em>run: int</em><span class="sig-paren">)</span> &#x2192; None<a class="reference internal" href="_modules/fileson.html#Fileson.revert"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fileson.Fileson.revert" title="Permalink to this definition">¶</a></dt>
+<dd><p>Revert Fileson to state at given run.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>run</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a>) – Run number, use -1 for previous etc.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="fileson.Fileson.save">
+<code class="descname">save</code><span class="sig-paren">(</span><em>filename: str</em>, <em>pretty: bool = False</em><span class="sig-paren">)</span> &#x2192; None<a class="reference internal" href="_modules/fileson.html#Fileson.save"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fileson.Fileson.save" title="Permalink to this definition">¶</a></dt>
+<dd><p>Save the DB.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>filename</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a>) – Filename</li>
+<li><strong>pretty</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.9)"><em>bool</em></a>) – Indent JSON to more human-readable form</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="fileson.Fileson.scan">
+<code class="descname">scan</code><span class="sig-paren">(</span><em>directory: str</em>, <em>**kwargs</em><span class="sig-paren">)</span> &#x2192; None<a class="reference internal" href="_modules/fileson.html#Fileson.scan"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fileson.Fileson.scan" title="Permalink to this definition">¶</a></dt>
+<dd><p>Scan a directory for objects or changes.</p>
+<p>Every invocation creates a new ‘run’, a version to Fileson
+database. Only changes need to be stored. You can then use
+for example <a class="reference internal" href="#fileson.Fileson.genItems" title="fileson.Fileson.genItems"><code class="xref py py-meth docutils literal"><span class="pre">genItems()</span></code></a> and pick only objects that
+were changed on a given run.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>directory</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a>) – Directory to scan</li>
+<li><strong>**kwargs</strong> – Booleans ‘verbose’ and ‘strict’ control behaviour</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="fileson.Fileson.set">
+<code class="descname">set</code><span class="sig-paren">(</span><em>path: str</em>, <em>obj: typing.Any</em><span class="sig-paren">)</span> &#x2192; bool<a class="reference internal" href="_modules/fileson.html#Fileson.set"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fileson.Fileson.set" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add or update a path’s contents.</p>
+<p>This is a non-destructive operation, the current run number
+is recorded and obj appended to path’s history.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>obj</strong> (<em>Any</em>) – ‘D’ for a directory, dict for file, None for a deletion</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">True if modifications resulted, False if not</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.9)">bool</a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">Welcome to fileson’s documentation!</a></li>
+      <li>Next: <a href="crypt.html" title="next chapter">Crypt module</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Joonas Pihlajamaa.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.7</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.8</a>
+      
+      |
+      <a href="_sources/fileson.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
