@@ -68,7 +68,7 @@ class LogDict(MutableMapping):
     def save(self, filename: str) -> None:
         """Save log to file.
 
-        Use 'meth'`create` to restore from a saved log.
+        Use :meth:`create` to restore from a saved log.
 
         Args:
             filename (str): File to write to
