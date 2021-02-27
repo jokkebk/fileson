@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+"""On-the-fly AES256 CTR encryption with file-like interface."""
 from Crypto.Cipher import AES
 from Crypto.Util import Counter
 import hashlib, os

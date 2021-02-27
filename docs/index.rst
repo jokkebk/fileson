@@ -12,6 +12,7 @@ Welcome to fileson's documentation!
 
    fileson
    crypt
+   logdict
 
 Indices and tables
 ==================
