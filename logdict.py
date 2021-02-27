@@ -18,8 +18,8 @@ class LogDict(MutableMapping):
     """
 
     @classmethod
-    def create(cls, filename: str, logging: bool=False) -> 'LogDict':
-        """Create LogDict from file and optionally start AOF logging.
+    def load(cls, filename: str, logging: bool=False) -> 'LogDict':
+        """Create a LogDict, init from file and optionally start logging.
 
         Args:
             filename (str): Filename, read into object if exists
@@ -29,7 +29,7 @@ class LogDict(MutableMapping):
         Returns:
             LogDict: A new object
         """
-        ld = LogDict()
+        ld = cls()
         if os.path.exists(filename):
             with open(filename, 'r', encoding='utf8') as fin:
                 for l in fin.readlines():

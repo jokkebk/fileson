@@ -25,7 +25,7 @@ Continuing from above, you can save the LogDict log to file:
 A powerful additional feature is the append-only file (AOF) logging
 that enables storing changes continuously to disk.
 
-    >>> l = LogDict.create('my.log', logging=True)
+    >>> l = LogDict.load('my.log', logging=True)
     >>> list(l.items())
     [('c', 3), ('b', 999)]
     >>> l['x'] = 123 # immediately persisted to disk
