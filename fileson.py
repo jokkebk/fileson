@@ -3,62 +3,34 @@ import json, os, time
 from collections import defaultdict
 from typing import Any, Tuple, Generator
 
+from logdict import LogDict
 from hash import sha_file
 
-class Fileson:
-    """File database with versioning support in JSON format.
+def gmt_str(mtime: int=None) -> str:
+    """Convert st_mtime to GMT string."""
+    return time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(mtime))
 
-    Normally only checksum is used, the other two (optional) parameters
-    are mainly for :meth:`load` and :meth:`load_or_scan` methods.
+class Fileson(LogDict):
+    """File database with previous versions support based on LogDict.
 
-    Args:
-        runs (list): A list of previous runs
-        root (dict): Contents of previous run
-        checksum (str): Checksum name or None
+    The file format is fully compatible so you can use :meth:`LogDict.create`
+    to instantiate one. Special keys like :scan:, :checksum: used for metadata
+    and additional :meth:`files` and :meth:`dirs` methods expose certain types
+    of contents. Also, :meth:`set` used to implement "set if changed"
+    functionality.
     """
 
     summer = {
-            'psm': lambda p,f: f'{p};{f["size"]};{f["modified_gmt"]}',
-            'nsm': lambda p,f: f'{f["name"]};{f["size"]};{f["modified_gmt"]}',
             'sha1': lambda p,f: sha_file(p),
             'sha1fast': lambda p,f: sha_file(p, quick=True)+str(f['size']),
             }
-
-    @classmethod
-    def load(cls: 'Fileson', filename: str, runsep: str='~') -> 'Fileson':
-        """Load Fileson database from file.
-
-        Loading supports a file.fson~1 notation to refer to previous version
-        of the database.
-
-        Args:
-            filename (str): Filename
-            runsep (str): Separator to use for versioning, default is ~
-
-        Returns:
-            Fileson: New class instance
-
-        Raises:
-            RuntimeError: On loading issues.
-        """
-        if '~' in filename[1:]:
-            parts = filename.split(runsep)
-            filename, parent = runsep.join(parts[:-1]), int(filename[-1])
-        else: parent = None
-        with open(filename, 'r', encoding='utf8') as fp:
-            js = json.load(fp)
-            if not all(k in js for k in ('runs', 'root', 'checksum')): raise \
-                    RuntimeError(f"{filename} doesn't seem to be a Fileson DB")
-            fs = cls(js['runs'], js['root'], js['checksum'])
-            if parent: fs.revert(-parent)
-            return fs
 
     @classmethod
     def load_or_scan(cls: 'Fileson', db_or_dir: str, **kwargs) -> 'Fileson':
         """Load Fileson database or create one by scanning a directory.
 
         This basically calls :meth:`load` or creates a new
-        instance and uses :meth:`scan` after it.
+        instance and uses :meth:`scan` after it (passing kwargs).
 
         Args:
             db_or_dir (str): Database or directory name
@@ -67,112 +39,24 @@ class Fileson:
             Fileson: New class instance
         """
         if os.path.isdir(db_or_dir):
-            fs = cls(checksum=kwargs.get('checksum', None))
+            fs = cls()
             fs.scan(db_or_dir, **kwargs)
             return fs
         else: return cls.load(db_or_dir)
 
-    def save(self, filename: str, pretty: bool=False) -> None:
-        """Save the DB.
+    def dirs(self) -> list:
+        """Return paths to dirs."""
+        return [p for p in self if p[0] != ':' and not 'size' in self[p]]
 
-        Args:
-            filename (str): Filename
-            pretty (bool): Indent JSON to more human-readable form
-        """
-        js = {
-                'description': 'Fileson file database.',
-                'url': 'https://github.com/jokkebk/fileson.git',
-                'version': '0.1.1',
-                'runs': self.runs,
-                'checksum': self.checksum,
-                'root': self.root
-                }
-        with open(filename, 'w', encoding='utf8') as fp:
-            json.dump(js, fp, indent=(2 if pretty else None), sort_keys=True)
+    def files(self) -> list:
+        """Return paths to files."""
+        return [p for p in self if p[0] != ':' and 'size' in self[p]]
 
-    def __init__(self, runs: list=None, root: dict={}, checksum: str=None) -> None:
-        # docs in class docstring
-        self.checksum = checksum
-        self.runs = runs or []
-        # keys are paths, values are (run, type) tuples
-        self.root = defaultdict(list, root)
-
-    def set(self, path: str, obj: Any) -> bool:
-        """Add or update a path's contents.
-
-        This is a non-destructive operation, the current run number
-        is recorded and obj appended to path's history.
-
-        Args:
-            obj (Any): 'D' for a directory, dict for file, None for a deletion
-
-        Returns:
-            bool: True if modifications resulted, False if not
-        """
-        prev = self.root[path][-1][1] if path in self.root else None
-        if prev == obj: return False # unmodified
-        self.root[path].append((run,obj)) # will become [run,obj] on save
-        return True # modified
-
-    def get(self, path: str, run: int=None) -> Tuple[int, Any]:
-        """Get current or given run state.
-
-        Args:
-            path (str): Object path
-            run (int): Run number (default is latest node)
-
-        Raises:
-            RuntimeError: If the run parameter doesn't make sense
-        """
-        if not path in self.root: return (run, None)
-        if not run == -1: return self.root[path][-1]
-        return next(t for t in self.root[path][::-1] if t[0] <= run)
-
-    def revert(self, run: int) -> None: # discard changes after <run>
-        """Revert Fileson to state at given run.
-
-        Args:
-            run (int): Run number, use -1 for previous etc.
-        """
-        if run < 0: run += len(self.runs)
-        if run < 0: raise RuntimeError('No such run!')
-        self.runs = self.runs[:run] # discard run history
-        for p in list(self.root):
-            a = self.root[p]
-            while a and a[-1][0] > run: a.pop()
-            if not a: del self.root[p]
-
-    def purge(self, run: int=-1) -> None: # discard inactive changes before <run>
-        """Purge history data.
-
-        Args:
-            run (int): Run number, use -1 for previous (default)
-        """
-        if run < 0: run += len(self.runs)
-        for p in list(self.root):
-            a = self.root[p]
-            b = [(max(r-run,1),o) for r,o in a if r>run]
-            if not b: b = [(max(a[-1][0]-run,1), a[-1][1])]
-            if len(b) > 1 or b[0][1] != None: self.root[p] = b
-            else: del self.root[p] # remove node if only deleted
-        self.runs = self.runs[run:]
-
-    def genItems(self, *args: str) -> Generator[str, int, Any]:
-        """Generate path,run,obj tuples of contents.
-
-        You should specify types of objects to return: 'files',
-        'dirs', 'deletes' or 'all' as a shorthand for everything.
-
-        Yields:
-            \*args (str): Types of objects to generate, see above
-        """
-        types = set()
-        if 'all' in args or 'files' in args: types.add(type({}))
-        if 'all' in args or 'dirs' in args: types.add(type('D'))
-        if 'all' in args or 'deletes' in args: types.add(type(None))
-        for p in self.root:
-            r,o = self.root[p][-1]
-            if type(o) in types: yield(p,r,o)
+    def set(self, key: Any, val: Any) -> bool:
+        """Set key to val if there's a change, in which case return True."""
+        if key in self and self[key] == val: return False
+        self[key] = val # change will be recorded by LogDict
+        return True
 
     def scan(self, directory: str, **kwargs) -> None:
         """Scan a directory for objects or changes.
@@ -186,58 +70,53 @@ class Fileson:
             directory (str): Directory to scan
             \*\*kwargs: Booleans 'verbose' and 'strict' control behaviour
         """
+        checksum = kwargs.get('checksum', None)
         verbose = kwargs.get('verbose', 0)
         strict = kwargs.get('strict', False)
-        make_key = lambda p: p if strict else p.split(os.sep)[-1]
+        make_key = lambda p,f: (p if strict else p.split(os.sep)[-1],
+                f['modified_gmt'], f['size'])
         
+        # Set metadata for run
+        self[':scan:'] = self.get(':scan:', 0) + 1 # first in a scan!
+        self[':directory:'] = directory
+        self[':checksum:'] = checksum
+        self[':date_gmt:'] = gmt_str()
+
         ccache = {}
-        if self.runs and self.checksum:
-            for p in self.root:
-                r, o = self.root[p][-1]
-                if isinstance(o, dict) and self.checksum in o:
-                    ccache[(make_key(p), o['modified_gmt'], o['size'])] = \
-                        o[self.checksum]
-
-        missing = set(self.root) # remove paths as they are encountered
-
-        self.runs.append({'directory': directory,
-            'date_gmt': time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())})
-
-        run = len(self.runs)
+        missing = set()
+        if checksum:
+            for p in self.files():
+                missing.add(p)
+                f = self[p]
+                if isinstance(f, dict) and checksum in f:
+                    ccache[make_key(p,f)] = f[checksum]
 
         startTime = time.time()
         fileCount, byteCount, nextG = 0, 0, 1
 
         for dirName, subdirList, fileList in os.walk(directory):
-            path = os.path.relpath(dirName, directory) # relative path
-            self.set(path, 'D')
-            missing.discard(path)
+            p = os.path.relpath(dirName, directory)
+            if self.set(p, { 'modified_gmt': gmt_str(os.stat(dirName).st_mtime) }): print('new dir', p)
+            missing.discard(p)
 
             for fname in fileList:
                 fpath = os.path.join(dirName, fname)
-                rpath = os.path.relpath(fpath, directory) # relative for csLookup
+                p = os.path.relpath(fpath, directory) # relative for csLookup
+                s = os.stat(fpath)
+                f = { 'size': s.st_size, 'modified_gmt': gmt_str(s.st_mtime) }
 
-                (mode, ino, dev, nlink, uid, gid, size, atime, mtime, ctime) = \
-                    os.stat(fpath)
-                modTime = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(mtime))
-                f = {
-                    'size': size,
-                    'modified_gmt': modTime
-                }
+                if checksum:
+                    if verbose > 1 and not make_key(p,f) in ccache:
+                        print(checksum, p)
+                    f[checksum] = ccache.get(make_key(p,f), None) or \
+                            Fileson.summer[checksum](fpath, f)
 
-                if self.checksum:
-                    key = (make_key(rpath), modTime, size)
-                    if key in ccache: f[self.checksum] = ccache[key]
-                    else:
-                        if verbose >= 2: print(self.checksum, rpath)
-                        f[self.checksum] = Fileson.summer[self.checksum](fpath, f)
-
-                if self.set(rpath, f): pass # print('modified', rpath)
-                missing.discard(rpath)
+                if self.set(p, f): print('changed', p)
+                missing.discard(p)
 
                 if verbose >= 1:
                     fileCount += 1
-                    byteCount += size
+                    byteCount += f['size']
                     if byteCount > nextG * 2**30:
                         nextG = byteCount // 2**30 + 1;
                         elapsed = time.time() - startTime
@@ -245,7 +124,9 @@ class Fileson:
                                 '%.1f G in %.2f s' % (byteCount/2**30, elapsed))
 
         # Mark missing elements as removed (if not already so)
-        for p in missing: self.set(p, None) 
+        for p in missing:
+            if verbose > 1: print('deleted', p)
+            del self[p]
 
     def diff(self, comp: 'Fileson', verbose: bool=False) -> list:
         """Compare to another Fileson object and report differences.

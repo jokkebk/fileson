@@ -14,8 +14,6 @@ arg_adders = {
 'checksum': lambda p: p.add_argument('-c', '--checksum', type=str,
     choices=Fileson.summer.keys(), default=None,
     help='Checksum method (if relevant in the context)'),
-'pretty': lambda p: p.add_argument('-p', '--pretty', action='store_true',
-    help='Output indented JSON'),
 'strict': lambda p: p.add_argument('-s', '--strict', action='store_true',
     help='Skip checksum only on full path (not just name) match'),
 'verbose': lambda p: p.add_argument('-v', '--verbose', action='count',
@@ -58,27 +56,6 @@ def duplicates(args):
     for csum,ps in csums.items():
         if len(ps)>1: print(csum, *ps, sep='\n')
 duplicates.args = 'db_or_dir minsize checksum'.split() # args to add
-
-def purge(args):
-    """Purge history from Fileson db."""
-    if not os.path.exists(args.dbfile):
-        print('No such file', args.dbfile)
-        return
-    if not args.force and not 'y' in \
-            input('Are you sure? This cannot be undone. (Y/N) ').lower():
-        return
-    fs = Fileson.load(args.dbfile)
-    fs.purge(args.run or -1)
-    fs.save(args.dbfile)
-purge.args = 'dbfile force run'.split()
-
-def diff(args):
-    """Find changes from origin database to target."""
-    origin = Fileson.load_or_scan(args.origin, checksum=args.checksum)
-    target = Fileson.load_or_scan(args.target, checksum=args.checksum)
-    deltas = origin.diff(target, verbose=args.verbose)
-    json.dump(deltas, args.delta, indent=(2 if args.pretty else None))
-diff.args = 'origin target delta verbose pretty checksum'.split() # args to add
 
 def stats(args):
     """Show statistics of a Fileson DB."""
@@ -144,23 +121,24 @@ copy.args = 'src dest force'.split() # args to add
 
 def scan(args):
     """Create fileson JSON file database."""
-    fs = Fileson.load(args.dbfile) if os.path.exists(args.dbfile) \
-            else Fileson(checksum=args.checksum)
-
-    if args.checksum and args.checksum != fs.checksum:
-        print('Fileson DB has different checksum mode', fs.checksum)
-        return
+    fs = Fileson.load(args.dbfile)
 
     if not args.dir:
-        if not fs.runs or not 'directory' in fs.runs[-1]:
+        if not ':directory:' in fs:
             print('No directory specified and none in DB!')
             return
-        args.dir = fs.runs[-1]['directory']
+        args.dir = fs[':directory:']
         if args.verbose: print('Using', args.dir, 'from DB')
 
-    fs.scan(args.dir, verbose=args.verbose, strict=args.strict)
-    fs.save(args.dbfile, pretty=args.pretty)
-scan.args = 'dbfile dir checksum pretty strict verbose'.split() # args to add
+    # If checksum not set but exists in fs, get it
+    if not args.checksum:
+        args.checksum = fs.get(':checksum:', None)
+        if args.verbose and args.checksum:
+            print('Using checksum', args.checksum, 'from DB')
+
+    fs.scan(args.dir, checksum=args.checksum, verbose=args.verbose, strict=args.strict)
+    fs.save(args.dbfile)
+scan.args = 'dbfile dir checksum strict verbose'.split() # args to add
 
 if __name__ == "__main__":
     # create the top-level parser
