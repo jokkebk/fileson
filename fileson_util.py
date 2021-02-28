@@ -5,38 +5,31 @@ import argparse, os, sys, json, random, inspect
 
 # These are the different argument types that can be added to a command
 arg_adders = {
+'checksum': lambda p: p.add_argument('-c', '--checksum', type=str,
+    choices=Fileson.summer.keys(), default=None,
+    help='Checksum method (if relevant in the context)'),
 'db_or_dir': lambda p: p.add_argument('db_or_dir', type=str,
     help='Database file or directory, supports db.fson~1 history mode.'),
 'dbfile': lambda p: p.add_argument('dbfile', type=str,
     help='Database file (JSON format)'),
+'delta': lambda p: p.add_argument('delta', nargs='?',
+    type=argparse.FileType('w'), default='-',
+    help='filename for delta or - for stdout (default)'),
+'dest': lambda p: p.add_argument('dest', type=str, help='Destination DB'),
 'dir': lambda p: p.add_argument('dir', nargs='?', type=str, default=None,
     help='Directory to scan'),
-'checksum': lambda p: p.add_argument('-c', '--checksum', type=str,
-    choices=Fileson.summer.keys(), default=None,
-    help='Checksum method (if relevant in the context)'),
-'strict': lambda p: p.add_argument('-s', '--strict', action='store_true',
-    help='Skip checksum only on full path (not just name) match'),
-'verbose': lambda p: p.add_argument('-v', '--verbose', action='count',
-    default=0, help='Print verbose status. Repeat for even more.'),
-'src': lambda p: p.add_argument('src', type=str,
-    help='Source DB, use src.fson~1 to access previous version etc.'),
-'dest': lambda p: p.add_argument('dest', type=str,
-    help='Destination DB'),
 'force': lambda p: p.add_argument('-f', '--force', action='store_true',
     help='Force action without additional prompts'),
 'minsize': lambda p: p.add_argument('-m', '--minsize', type=str, default='0',
     help='Minimum size (e.g. 100, 10k, 1M)'),
-'origin': lambda p: p.add_argument('origin', type=str,
-    help='Origin database or directory'),
-'target': lambda p: p.add_argument('target', type=str,
-    help='Target database or directory'),
-'delta': lambda p: p.add_argument('delta', nargs='?',
-    type=argparse.FileType('w'), default='-',
-    help='filename for delta or - for stdout (default)'),
 'percent': lambda p: p.add_argument('percent', type=int,
     help='Percentage of checksums to check'),
-'run': lambda p: p.add_argument('-r', '--run', type=int, default=None,
-    help='Run number, negative are relative to latest'),
+'src': lambda p: p.add_argument('src', type=str,
+    help='Source DB, use src.fson~1 to access previous version etc.'),
+'strict': lambda p: p.add_argument('-s', '--strict', action='store_true',
+    help='Skip checksum only on full path (not just name) match'),
+'verbose': lambda p: p.add_argument('-v', '--verbose', action='count',
+    default=0, help='Print verbose status. Repeat for even more.'),
         }
 
 # Function per command
@@ -45,8 +38,8 @@ def duplicates(args):
     minsize = int(args.minsize.replace('G', '000M').replace('M', '000k').replace('k', '000'))
 
     fs = Fileson.load_or_scan(args.db_or_dir, checksum=args.checksum)
-    files = [(p,o) for p,r,o in fs.genItems('files') if o['size'] >= minsize]
-    checksum = fs.checksum or 'size'
+    files = [(p,fs[p]) for p in fs.files() if fs[p]['size'] >= minsize]
+    checksum = fs.get(':checksum:', 'size')
 
     if checksum == 'size': print('No checksum, using file size!')
         
@@ -60,56 +53,67 @@ duplicates.args = 'db_or_dir minsize checksum'.split() # args to add
 def stats(args):
     """Show statistics of a Fileson DB."""
     fs = Fileson.load_or_scan(args.db_or_dir)
-    print(len(fs.runs), 'runs,', len(fs.root), 'paths, checksum', fs.checksum)
-    for r in fs.runs: print('   ', r['date_gmt'],
-            r.get('directory', 'no directory specified'))
 
-    files = [i for i in fs.genItems('files')]
-    dirs = [i for i in fs.genItems('dirs')]
-    size = sum(o['size'] for p,r,o in files)
-    print(len(files), 'files', len(dirs), 'directories')
+    print(len(fs.files()), 'files', len(fs.dirs()), 'directories')
 
-    if dirs: print('Maximum directory depth',
-            max(p.count(os.sep) for p,r,o in dirs))
+    if args.verbose:
+        print('Metadata history:')
+        for i,t in enumerate(fs.log):
+            if len(t)==2 and t[0][0]==':': print(f'{i:05d}: {t[0]:12s} {t[1]}')
 
+    dirs = list(fs.dirs())
+    if dirs: print('Max dir depth', max(p.count(os.sep) for p in dirs))
+
+    files = list(fs.files())
     if files:
-        print('Total file size %.2f GiB' % (size/2**30))
-        print('Maximum individual file size %.3f GiB' % 
-                (max(o['size'] for p,r,o in files)/2**30))
-stats.args = ['db_or_dir'] # args to add
+        print('Total file size %.2f GiB' %
+                (sum(fs[p]['size'] for p in files)/2**30))
+        print('Max file size %.3f GiB' % 
+                (max(fs[p]['size'] for p in files)/2**30))
+stats.args = ['db_or_dir', 'verbose'] # args to add
 
 def checksum(args):
     """Change or re-run checksums for a Fileson DB."""
     fs = Fileson.load(args.dbfile)
-    if not fs.checksum:
+    checksum = fs.get(':checksum:', None)
+    if not checksum:
         print('No checksum in the DB!')
-        return;
-    if args.verbose: print('Existing checksum', fs.checksum)
+        return
+    if args.verbose: print('Existing checksum', checksum)
 
-    if not args.dir:
-        if not fs.runs or not 'directory' in fs.runs[-1]:
-            print('No directory specified and none in DB!')
-            return
-        args.dir = fs.runs[-1]['directory']
-        if args.verbose: print('Using', args.dir, 'from DB')
+    directory = args.dir or fs.get(':directory:', None)
+    if not directory:
+        print('No directory specified and none in DB!')
+        return
+    if args.verbose: print('Base directory', directory)
 
-    if args.percent: # re-run part of checksums
-        files = {p: o for p,r,o in fs.genItems('files')}
-        n = args.percent * len(files) // 100
-        if args.verbose: print('Rechecking', n, 'files\' checksums')
-        csummer = Fileson.summer[fs.checksum]
+    files = {p: o for p,r,o in fs.genItems('files')}
+    n = args.percent * len(files) // 100
+    if args.verbose: print('Rechecking', n, 'files\' checksums')
+    csummer = Fileson.summer[fs.checksum]
 
-        for p in random.sample(files.keys(), k=n):
-            f = files[p]
-            fp = os.path.join(args.dir, p)
-            old = f[fs.checksum]
-            new = csummer(fp, f)
-            if old == new:
-                if args.verbose: print('OK', fp.split(os.sep)[-1])
-            else:
-                print('FAIL', fp)
-                print('old', old, 'vs.', new, 'new')
+    for p in random.sample(files.keys(), k=n):
+        f = files[p]
+        fp = os.path.join(args.dir, p)
+        old = f[fs.checksum]
+        new = csummer(fp, f)
+        if old == new:
+            if args.verbose: print('OK', fp.split(os.sep)[-1])
+        else:
+            print('FAIL', fp)
+            print('old', old, 'vs.', new, 'new')
 checksum.args = 'dbfile percent dir force verbose'.split() # args to add
+
+def diff(args):
+    """Show difference between two Fileson objects (or directories)."""
+    src = Fileson.load_or_scan(args.src)
+    dest = Fileson.load_or_scan(args.dest)
+    for p in sorted(set(src) | set(dest)):
+        s = src.get(p, None)
+        d = dest.get(p, None)
+        if p[0] != ':' and s != d:
+            print(json.dumps({'path': p, 'src': s, 'dest': d}))
+diff.args = 'src dest'.split() # args to add
 
 def copy(args):
     """Make a copy of (specified version of the) database."""

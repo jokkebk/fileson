@@ -1,5 +1,5 @@
 """Fileson class to manipulate Fileson databases."""
-import json, os, time
+import json, os, time, re
 from collections import defaultdict
 from typing import Any, Tuple, Generator
 
@@ -44,6 +44,15 @@ class Fileson(LogDict):
             return fs
         else: return cls.load(db_or_dir)
 
+    @classmethod
+    def load(cls: 'Fileson', dbfile: str) -> 'Fileson':
+        """Overloaded class method to support f.fson~1 history syntax."""
+        m = re.match('(.*)~(\d+)', dbfile)
+        if m: dbfile = m.group(1)
+        fs = super(Fileson, cls).load(dbfile)
+        if m: end = (':scan:', fs[':scan:'] - int(m.group(2)) + 1)
+        return fs.slice(None, end) if m else fs
+
     def dirs(self) -> list:
         """Return paths to dirs."""
         return [p for p in self if p[0] != ':' and not 'size' in self[p]]
@@ -83,10 +92,9 @@ class Fileson(LogDict):
         self[':date_gmt:'] = gmt_str()
 
         ccache = {}
-        missing = set()
+        missing = set(self.files()) | set(self.dirs())
         if checksum:
             for p in self.files():
-                missing.add(p)
                 f = self[p]
                 if isinstance(f, dict) and checksum in f:
                     ccache[make_key(p,f)] = f[checksum]
@@ -96,7 +104,7 @@ class Fileson(LogDict):
 
         for dirName, subdirList, fileList in os.walk(directory):
             p = os.path.relpath(dirName, directory)
-            if self.set(p, { 'modified_gmt': gmt_str(os.stat(dirName).st_mtime) }): print('new dir', p)
+            self.set(p, { 'modified_gmt': gmt_str(os.stat(dirName).st_mtime) })
             missing.discard(p)
 
             for fname in fileList:
@@ -111,7 +119,7 @@ class Fileson(LogDict):
                     f[checksum] = ccache.get(make_key(p,f), None) or \
                             Fileson.summer[checksum](fpath, f)
 
-                if self.set(p, f): print('changed', p)
+                self.set(p, f)
                 missing.discard(p)
 
                 if verbose >= 1:
@@ -124,55 +132,4 @@ class Fileson(LogDict):
                                 '%.1f G in %.2f s' % (byteCount/2**30, elapsed))
 
         # Mark missing elements as removed (if not already so)
-        for p in missing:
-            if verbose > 1: print('deleted', p)
-            del self[p]
-
-    def diff(self, comp: 'Fileson', verbose: bool=False) -> list:
-        """Compare to another Fileson object and report differences.
-
-        Returned delta structure uses 'origin' to refer to self, and
-        'target' to refered to the other Fileson object being compared.
-
-        Args:
-            comp (Fileson): Target object to compare against
-            verbose (bool): Set to True to print out stuff
-
-        Returns:
-            list: A list of dict objects outlining the differences.
-
-        Raises:
-            RuntimeError: If one of the objects is empty
-        """
-        if not self.runs or not comp.runs: raise RuntimeError(('Both '
-            'fileson objects need runs to compare differences!'))
-
-        cs = self.checksum if self.checksum == comp.checksum else None
-
-        if cs:
-            if verbose: print(f'Using checksum: {cs}')
-            ohash = {o[cs]: p for p,r,o in self.genItems('files')}
-            thash = {o[cs]: p for p,r,o in comp.genItems('files')}
-            pick = lambda f: f # keep checksum
-        else:
-            if verbose: print('Not using checksum')
-            pick = lambda f: {k:f[k] for k in ('size', 'modified_gmt')}
-
-        deltas = []
-        for p in sorted(set(self.root) | set(comp.root)):
-            _, ofile = self.get(p) # discard run
-            _, tfile = comp.get(p) # discard run
-            d = {'path': p, 'origin': ofile, 'target': tfile}
-            if p == 'some.zip': print(d)
-            if not ofile and not tfile: continue
-            elif not ofile:
-                if cs and isinstance(tfile, dict) and tfile[cs] in ohash:
-                    d['origin_path'] = ohash[tfile[cs]]
-            elif not tfile:
-                if cs and isinstance(ofile, dict) and ofile[cs] in thash:
-                    d['target_path'] = thash[ofile[cs]]
-            elif isinstance(ofile, dict) and isinstance(tfile, dict): # files
-                if pick(ofile) == pick(tfile): continue # skip appending delta
-            elif ofile == tfile: continue # simple comparison for non-files
-            deltas.append(d) # we got here, so there's a difference
-        return deltas
+        for p in missing: del self[p]

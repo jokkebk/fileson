@@ -111,7 +111,7 @@ class LogDict(MutableMapping):
         Returns:
             LogDict: A copy with slice of the log and appropriate content.
         """
-        ld = LogDict()
+        ld = self.__class__() # make work with children
         i1 = self.log.index(start) if start else 0
         i2 = self.log.index(end) if end else len(self.log)
         for t in self.log[i1:i2]:
