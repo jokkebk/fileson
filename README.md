@@ -9,22 +9,25 @@ Fileson databases.
 * `fileson_util.py` is a command-line toolkit to create Fileson
 databases and do useful things with them
 
+API documentation (everything very much subject to change) available
+at https://fileson.readthedocs.io/en/latest/
+
 ## Create a Fileson database
 
 ```console
 user@server:~$ python3 fileson_util.py scan files.fson ~/mydir
 ```
 
-This will create a JSON file `files.fson` that contains a directory tree
-and all file information (name, modified date, size) for `~/mydir`.
+Fileson databases are essentially log files with JSON objects per row,
+containing directory and file information (name, modified date, size)
+for `~/mydir` and some additional metadata for each `scan` (changes to
+entries are appended to the end).
+
 To calculate an SHA1 checksum for the files as well:
 
 ```console
 user@server:~$ python3 fileson_util.py scan files.fson ~/mydir -c sha1
 ```
-
-You can add `-p` to make the `.fson` file more human-readable. See all
-options with `-h`.
 
 Calculating SHA1 checksums is somewhat slow, around 1 GB/s on modern m.2 SSD
 and 150 MB/s on a mechanical drive, so you can use `-c sha1fast` to only
@@ -67,21 +70,18 @@ user@server:~$ python3 fileson_util.py duplicates /mnt/d/SomeFolder -m 1M -c sha
 ## Change detection
 
 Once you have a Fileson database or two, you can compare them with
-`fileson_util.py diff`. Like the duplicate command, one or both can be a directory
-(in the latter case you have to specify checksum method yourself, otherwise
-it's deducted from database files that need to have a matching checksum type):
+`fileson_util.py diff`. Like the duplicate command, one or both can be a directory.
+Note that two files with different checksum types will essentially differ on all
+files.
 
 ```console
 user@server:~$ python3 fileson_util.py diff myfiles-2010.fson myfiles-2020.fson \
   myfiles-2010-2020.delta
 ```
 
-The `myfiles-2010-2020.delta` now contains a JSON array specifying differences
-in the two databases -- files that exist only in origin, only in target, or
-have changed. If you are using a checksum, the command will also look up the
-file from the other db/directory using the checksum to detect moved files.
-You can again use `-p` to indent the for human-readability. Omitting the
-delta filename will print to standard output.
+The `myfiles-2010-2020.delta` now contains a row per difference between
+the two databases/directories -- files that exist only in origin, only in target, or
+have changed.
 
 Let's say you move `some.zip` around a bit (JSON formatted for clarity):
 
@@ -89,34 +89,20 @@ Let's say you move `some.zip` around a bit (JSON formatted for clarity):
 user@server:~$ python3 fileson_util.py scan files.fson ~/mydir -c sha1
 user@server:~$ mv ~/mydir/some.zip ~/mydir/subdir/newName.zip
 user@server:~$ python3 fileson_util.py diff files.fson ~/mydir -c sha1 -p
-[
-  {
-    "path": "some.zip",
-    "target": null,
-    "origin": {
-      "size": 0,
-      "modified_gmt": "2021-02-23 21:57:25",
-      "sha1": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
-    },
-    "target_path": "subdir/newName.zip"
-  },
-  {
-    "path": "subdir/newName.zip",
-    "target": {
-      "size": 0,
-      "modified_gmt": "2021-02-23 21:57:25",
-      "sha1": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
-    },
-    "origin": null,
-    "origin_path": "some.zip"
-  }
-]
+{"path": ".", "src": {"modified_gmt": "2021-02-28 19:42:05"},
+    "dest": {"modified_gmt": "2021-02-28 19:42:26"}}
+{"path": "some.zip", "src": {"size": 0, "modified_gmt": "2021-02-23 21:57:25"},
+    "dest": null}
+{"path": "subdir", "src": {"modified_gmt": "2021-02-28 19:42:05"},
+    "dest": {"modified_gmt": "2021-02-28 19:42:26"}}
+{"path": "subdir/newName.zip", "src": null,
+    "dest": {"size": 0, "modified_gmt": "2021-02-23 21:57:25"}}
 ```
 
 Doing an incremental backup would involve grabbing the deltas which have
-`origin` set to `null` and don't have an `origin_path` reference. All other
-changes can be replicated with simple copy and delete statements (and recreated
-using information in the diff).
+`src` set to `null`. With SHA1 checksums, you could also only upload the new
+file if the file blob has not been uploaded before (keeping a separate Fileson
+object log of backed up files).
 
 Loading Fileson databases has special syntax similar to `git` where you can
 revert to previous versions with `db.fson~1` to get the previous version or
@@ -125,11 +111,10 @@ a breeze. Instead of the `fileson_util.py diff` invocation above, you could
 update the db and see what changed:
 
 ```console
-user@server:~$ python3 fileson_util.py scan files.fson ~/mydir
-No checksum specified, using sha1 from DB
+user@server:~$ python3 fileson_util.py scan files.fson
 user@server:~$ python3 fileson_util.py diff files.fson~1 files.fson -p
 [ same output as the above diff ]
 ```
 
-Note that you did not have to specify `-c sha1` for the commands because that
+Note that you did not have to specify checksum type or directory, as it
 is detected automatically from the Fileson DB.

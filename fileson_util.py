@@ -112,8 +112,9 @@ def diff(args):
         s = src.get(p, None)
         d = dest.get(p, None)
         if p[0] != ':' and s != d:
-            print(json.dumps({'path': p, 'src': s, 'dest': d}))
-diff.args = 'src dest'.split() # args to add
+            json.dump({'path': p, 'src': s, 'dest': d}, args.delta)
+            args.delta.write('\n')
+diff.args = 'src dest delta'.split() # args to add
 
 def copy(args):
     """Make a copy of (specified version of the) database."""
