@@ -85,7 +85,10 @@ decrypt.args = 'input output key verbose force'.split()
 
 def run(args):
     """Perform backup based on latest Fileson DB state."""
-    fs = Fileson.load(args.dbfile)
+    fs = Fileson.load_or_scan(args.dbfile, checksum='sha1')
+    if fs.get(':checksum:', None) != 'sha1':
+        print('Backup only works with full sha1 hash. Safety first.')
+        return
 
     backup = Fileson.load(args.logfile)
     backup.startLogging(args.logfile)
@@ -94,20 +97,14 @@ def run(args):
     backup[':date_gmt:'] = gmt_str()
     backup[':destination:'] = args.destination
 
-    seed = backup[':date_gmt:']
-    key = key_or_file(args.keyfile) if args.keyfile else None
-    if key:
-        Enc = namedtuple('Enc', 'input output key force')
+    if args.keyfile:
+        key = key_or_file(args.keyfile)
         make_backup = lambda a,b: raw_encrypt(a, b, key)
-    else:
-        make_backup = lambda a,b: shutil.copyfile(a, b)
+    else: make_backup = lambda a,b: shutil.copyfile(a, b)
 
-    if fs.get(':checksum:', None) != 'sha1':
-        print('Backup only works with full sha1 hash. Safety first.')
-        return
-        
     uploaded = { backup[p]['sha1']: p for p in backup.files() }
-    print(uploaded)
+
+    seed = backup[':date_gmt:'] # for backup filename generation
     for p in fs.files():
         o = fs[p]
         if o['sha1'] in uploaded:
