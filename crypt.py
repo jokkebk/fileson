@@ -3,6 +3,12 @@ from Crypto.Cipher import AES
 from Crypto.Util import Counter
 import hashlib, os
 
+def sha1(s : str) -> bytes:
+    """One-off sha1 hashing of a string (encoded as utf8)."""
+    m = hashlib.sha1()
+    m.update(s.encode('utf8'))
+    return m.digest()
+
 def keygen(password: str, salt: str, iterations: int=10**6) -> bytes:
     """Generate a 32 byte key from password and salt using PBKDF2.
 
