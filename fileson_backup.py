@@ -2,8 +2,9 @@
 from collections import defaultdict, namedtuple
 from fileson import Fileson, gmt_str
 from logdict import LogDict
-from crypt import keygen as kg, AESFile, sha1
+from crypt import keygen as kg, AESFile, sha1, calc_etag
 import argparse, os, sys, json, signal, time, hashlib, inspect, shutil
+import boto3
 
 # Return key or if a filename, its contents
 def key_or_file(key):
@@ -17,6 +18,9 @@ arg_adders = {
 'salt': lambda p: p.add_argument('salt', type=str, help='Salt'),
 'input': lambda p: p.add_argument('input', type=str, help='Input file'),
 'output': lambda p: p.add_argument('output', type=str, help='Output file'),
+'bucket': lambda p: p.add_argument('bucket', type=str, help='S3 bucket'),
+'in_obj': lambda p: p.add_argument('in_obj', type=str, help='Input file or S3 object name'),
+'out_obj': lambda p: p.add_argument('out_obj', type=str, help='Output file or S3 object name'),
 'key': lambda p: p.add_argument('key', type=str,
     help='Key in hex format or filename of the keyfile'),
 'keyfile': lambda p: p.add_argument('-k', '--keyfile', type=str,
@@ -82,6 +86,31 @@ def decrypt(args):
             'Do you wish to overwrite? [y/n] '): return
     raw_decrypt(args.input, args.output, key_or_file(args.key))
 decrypt.args = 'input output key verbose force'.split()
+
+def etag(args):
+    with open(args.input, 'rb') as f: print(calc_etag(f))
+etag.args = 'input'.split()
+
+def upload(args):
+    s3 = boto3.client('s3')
+    
+    if args.keyfile: fp = AESFile(args.in_obj, 'rb', key_or_file(args.keyfile))
+    else: fp = open(args.in_obj, 'rb')
+
+    resp = s3.upload_fileobj(fp, args.bucket, args.out_obj)
+    print(resp)
+    fp.close()
+upload.args = 'in_obj out_obj bucket keyfile'.split()
+
+def download(args):
+    s3 = boto3.client('s3')
+    if args.keyfile: fp = AESFile(args.out_obj, 'wb', key_or_file(args.keyfile))
+    else: fp = open(args.out_obj, 'wb')
+
+    resp = s3.download_fileobj(args.bucket, args.in_obj, fp)
+    print(resp)
+    fp.close()
+download.args = 'in_obj out_obj bucket keyfile'.split()
 
 def run(args):
     """Perform backup based on latest Fileson DB state."""
