@@ -3,10 +3,11 @@ from Crypto.Cipher import AES
 from Crypto.Util import Counter
 import hashlib, os
 
-def sha1(s : str) -> bytes:
-    """One-off sha1 hashing of a string (encoded as utf8)."""
+def sha1(s: object) -> bytes:
+    """One-off sha1 hashing of bytes or a string (encoded as utf8)."""
     m = hashlib.sha1()
-    m.update(s.encode('utf8'))
+    if isinstance(s, str): m.update(s.encode('utf8'))
+    else: m.update(s)
     return m.digest()
 
 # Courtesy of Tom Gardiner at Teppen.io

@@ -31,6 +31,8 @@ arg_adders = {
     help='Database file (JSON format)'),
 'logfile': lambda p: p.add_argument('logfile', type=str,
     help='Logfile to append all operations to'),
+'source': lambda p: p.add_argument('source', type=str,
+    help='Source directory'),
 'destination': lambda p: p.add_argument('destination', type=str,
     help='Destination directory'),
 'dir': lambda p: p.add_argument('dir', nargs='?', type=str, default=None,
@@ -112,28 +114,29 @@ def download(args):
     fp.close()
 download.args = 'in_obj out_obj bucket keyfile'.split()
 
-def run(args):
+def backup(args):
     """Perform backup based on latest Fileson DB state."""
     fs = Fileson.load_or_scan(args.dbfile, checksum='sha1')
     if fs.get(':checksum:', None) != 'sha1':
-        print('Backup only works with full sha1 hash. Safety first.')
+        print('Backup only works with full SHA1 hash. Safety first.')
         return
 
-    backup = Fileson.load(args.logfile)
-    backup.startLogging(args.logfile)
-    backup[':backup:'] = backup.get(':backup:', 0) + 1
-    backup[':dbfile:'] = args.dbfile
-    backup[':date_gmt:'] = gmt_str()
-    backup[':destination:'] = args.destination
+    log = Fileson.load(args.logfile)
+    log.startLogging(args.logfile)
+    log[':backup:'] = log.get(':backup:', 0) + 1
+    log[':dbfile:'] = args.dbfile
+    log[':date_gmt:'] = gmt_str()
+    log[':destination:'] = args.destination
 
     if args.keyfile:
         key = key_or_file(args.keyfile)
+        log[':keyhash:'] = sha1(key).hex()
         make_backup = lambda a,b: raw_encrypt(a, b, key)
     else: make_backup = lambda a,b: shutil.copyfile(a, b)
 
-    uploaded = { backup[p]['sha1']: p for p in backup.files() }
+    uploaded = { log[p]['sha1']: p for p in log.files() }
 
-    seed = backup[':date_gmt:'] # for backup filename generation
+    seed = log[':date_gmt:'] # for backup filename generation
     for p in fs.files():
         o = fs[p]
         if o['sha1'] in uploaded:
@@ -142,11 +145,49 @@ def run(args):
         name = sha1(seed+o['sha1']).hex() # deterministic random name
         print('Backup', p.split(os.sep)[-1], o['sha1'], 'to', name)
         make_backup(os.path.join(fs[':directory:'], p), os.path.join(args.destination, name))
-        backup[name] = { 'sha1': o['sha1'], 'size': o['size'] }
+        log[name] = { 'sha1': o['sha1'], 'size': o['size'] }
 
-    backup.endLogging()
+    log.endLogging()
+backup.args = 'dbfile logfile destination keyfile verbose'.split() # args to add
 
-run.args = 'dbfile logfile destination keyfile verbose'.split() # args to add
+def restore(args):
+    """Restore backup based on Fileson DB and backup log."""
+    fs = Fileson.load(args.dbfile)
+    if fs.get(':checksum:', None) != 'sha1':
+        print('Cannot restore without SHA1 hash.')
+        return
+
+    log = Fileson.load(args.logfile)
+
+    if args.keyfile:
+        key = key_or_file(args.keyfile)
+        make_restore = lambda a,b: raw_decrypt(a, b, key)
+        keyhash = sha1(key).hex()
+        if keyhash != log[':keyhash:']:
+            print(f'Provided key hash {keyhash} does not match backup file!')
+            return
+    else: make_restore = lambda a,b: shutil.copyfile(a, b)
+
+
+
+    uploaded = { log[p]['sha1']: p for p in log.files() }
+    for p in sorted(fs.dirs()):
+        fp = args.destination
+        if p != '.': fp = os.path.join(fp, p)
+        print('mkdir', fp)
+        os.makedirs(fp, exist_ok=True)
+
+    for p in sorted(fs.files()):
+        f = fs[p]
+        b = uploaded.get(f['sha1'], None)
+        if not b:
+            print('Missing', p, f)
+            continue
+        fp = os.path.join(args.destination, p)
+        bp = os.path.join(args.source, b)
+        print('get', fp, 'from', bp)
+        make_restore(bp, fp)
+restore.args = 'dbfile logfile source destination keyfile verbose'.split() # args to add
 
 if __name__ == "__main__":
     # register signal handler to close any open log files
