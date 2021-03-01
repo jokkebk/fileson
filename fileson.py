@@ -1,5 +1,6 @@
 """Fileson class to manipulate Fileson databases."""
 import json, os, time, re
+from datetime import datetime
 from collections import defaultdict
 from typing import Any, Tuple, Generator
 
@@ -9,6 +10,11 @@ from hash import sha_file
 def gmt_str(mtime: int=None) -> str:
     """Convert st_mtime to GMT string."""
     return time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(mtime))
+
+def gmt_epoch(mtime: str) -> int:
+    """Convert YYYY-MM-DD HH:MM:SS in GMT to epoch."""
+    utc_time = datetime.strptime(mtime, '%Y-%m-%d %H:%M:%S')
+    return int((utc_time - datetime(1970, 1, 1)).total_seconds())
 
 class Fileson(LogDict):
     """File database with previous versions support based on LogDict.

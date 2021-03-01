@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from collections import defaultdict, namedtuple
-from fileson import Fileson, gmt_str
+from fileson import Fileson, gmt_str, gmt_epoch
 from logdict import LogDict
 from crypt import keygen as kg, AESFile, sha1, calc_etag
 import argparse, os, sys, json, signal, time, hashlib, inspect, shutil
@@ -168,25 +168,26 @@ def restore(args):
             return
     else: make_restore = lambda a,b: shutil.copyfile(a, b)
 
-
-
     uploaded = { log[p]['sha1']: p for p in log.files() }
     for p in sorted(fs.dirs()):
         fp = args.destination
         if p != '.': fp = os.path.join(fp, p)
         print('mkdir', fp)
         os.makedirs(fp, exist_ok=True)
+        mtime = gmt_epoch(fs[p]['modified_gmt'])
+        os.utime(fp, (mtime, mtime))
 
     for p in sorted(fs.files()):
-        f = fs[p]
-        b = uploaded.get(f['sha1'], None)
+        b = uploaded.get(fs[p]['sha1'], None)
         if not b:
-            print('Missing', p, f)
+            print('Missing', p, fs[p])
             continue
         fp = os.path.join(args.destination, p)
         bp = os.path.join(args.source, b)
         print('get', fp, 'from', bp)
         make_restore(bp, fp)
+        mtime = gmt_epoch(fs[p]['modified_gmt'])
+        os.utime(fp, (mtime, mtime))
 restore.args = 'dbfile logfile source destination keyfile verbose'.split() # args to add
 
 if __name__ == "__main__":
