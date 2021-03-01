@@ -8,6 +8,7 @@ import boto3
 
 # Return key or if a filename, its contents
 def key_or_file(key):
+    if isinstance(key, bytes): return key # passthrough
     if os.path.exists(key):
         with open(key, 'r') as f: key = ''.join(f.read().split())
     return bytes.fromhex(key)
@@ -67,26 +68,20 @@ def cryptfile(infile, outfile, verbose=False):
     secs = time.time() - startTime
     if verbose: print('%d b in %.1f s, %.2f GiB/s' % (bs, secs, bs/2**30/secs))
 
-def raw_encrypt(src, dest, key):
-    with AESFile(src, 'rb', key) as fin:
-        with open(dest, 'wb') as fout:
-            cryptfile(fin, fout, verbose=args.verbose)
-
-def raw_decrypt(src, dest, key):
-    with open(src, 'rb') as fin:
-        with AESFile(dest, 'wb', key) as fout:
-            cryptfile(fin, fout, verbose=args.verbose)
-
 def encrypt(args):
-    if os.path.exists(args.output) and not 'y' in input('Output exists! '
-            'Do you wish to overwrite? [y/n] '): return
-    raw_encrypt(args.input, args.output, key_or_file(args.key))
+    if not args.force and os.path.exists(args.output) and not 'y' in \
+            input('Output exists! Do you wish to overwrite? [y/n] '): return
+    with AESFile(args.input, 'rb', key_or_file(args.key)) as fin:
+        with open(args.output, 'wb') as fout:
+            cryptfile(fin, fout, verbose=args.verbose)
 encrypt.args = 'input output key verbose force'.split()
 
 def decrypt(args):
-    if os.path.exists(args.output) and not 'y' in input('Output exists! '
-            'Do you wish to overwrite? [y/n] '): return
-    raw_decrypt(args.input, args.output, key_or_file(args.key))
+    if not args.force and os.path.exists(args.output) and not 'y' in \
+            input('Output exists! Do you wish to overwrite? [y/n] '): return
+    with open(args.input, 'rb') as fin:
+        with AESFile(args.output, 'wb', key_or_file(args.key)) as fout:
+            cryptfile(fin, fout, verbose=args.verbose)
 decrypt.args = 'input output key verbose force'.split()
 
 def etag(args):
@@ -95,12 +90,9 @@ etag.args = 'input'.split()
 
 def upload(args):
     s3 = boto3.client('s3')
-    
     if args.keyfile: fp = AESFile(args.in_obj, 'rb', key_or_file(args.keyfile))
     else: fp = open(args.in_obj, 'rb')
-
     resp = s3.upload_fileobj(fp, args.bucket, args.out_obj)
-    print(resp)
     fp.close()
 upload.args = 'in_obj out_obj bucket keyfile'.split()
 
@@ -108,9 +100,7 @@ def download(args):
     s3 = boto3.client('s3')
     if args.keyfile: fp = AESFile(args.out_obj, 'wb', key_or_file(args.keyfile))
     else: fp = open(args.out_obj, 'wb')
-
     resp = s3.download_fileobj(args.bucket, args.in_obj, fp)
-    print(resp)
     fp.close()
 download.args = 'in_obj out_obj bucket keyfile'.split()
 
@@ -131,7 +121,8 @@ def backup(args):
     if args.keyfile:
         key = key_or_file(args.keyfile)
         log[':keyhash:'] = sha1(key).hex()
-        make_backup = lambda a,b: raw_encrypt(a, b, key)
+        myargs = namedtuple('myargs', 'input output key verbose force')
+        make_backup = lambda a,b: encrypt(myargs(a, b, key, False, True))
     else: make_backup = lambda a,b: shutil.copyfile(a, b)
 
     uploaded = { log[p]['sha1']: p for p in log.files() }
@@ -161,7 +152,8 @@ def restore(args):
 
     if args.keyfile:
         key = key_or_file(args.keyfile)
-        make_restore = lambda a,b: raw_decrypt(a, b, key)
+        myargs = namedtuple('myargs', 'input output key verbose force')
+        make_restore = lambda a,b: decrypt(myargs(a, b, key, False, True))
         keyhash = sha1(key).hex()
         if keyhash != log[':keyhash:']:
             print(f'Provided key hash {keyhash} does not match backup file!')
