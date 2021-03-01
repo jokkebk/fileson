@@ -16,7 +16,9 @@ def calc_etag(infile, partsize=8388608):
     md5_digests = []
     for chunk in iter(lambda: infile.read(partsize), b''):
       md5_digests.append(hashlib.md5(chunk).digest())
-    return hashlib.md5(b''.join(md5_digests)).hexdigest() + '-' + str(len(md5_digests))
+    if len(md5_digests)==1: return md5_digests[0].hex()
+    return hashlib.md5(b''.join(md5_digests)).hexdigest() + '-' + \
+        str(len(md5_digests))
 
 def keygen(password: str, salt: str, iterations: int=10**6) -> bytes:
     """Generate a 32 byte key from password and salt using PBKDF2.
