@@ -6,6 +6,12 @@ from crypt import keygen as kg, AESFile, sha1, calc_etag
 import argparse, os, sys, json, signal, time, hashlib, inspect, shutil, re
 import boto3
 
+class S3Action(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        m = re.match('s3://(\w+)/(.+)', values)
+        if not m: raise ValueError('S3 address in format s3://bucket/objpath')
+        setattr(namespace, self.dest, (m.group(1), m.group(2)))
+
 # Return key or if a filename, its contents
 def key_or_file(key):
     if isinstance(key, bytes): return key # passthrough
@@ -19,7 +25,8 @@ arg_adders = {
 'salt': lambda p: p.add_argument('salt', type=str, help='Salt'),
 'input': lambda p: p.add_argument('input', type=str, help='Input file'),
 'output': lambda p: p.add_argument('output', type=str, help='Output file'),
-'bucket': lambda p: p.add_argument('bucket', type=str, help='S3 bucket'),
+'s3path': lambda p: p.add_argument('s3path', type=str, action=S3Action,
+    help='S3 path in form s3://bucket/objpath'),
 'in_obj': lambda p: p.add_argument('in_obj', type=str, help='Input file or S3 object name'),
 'out_obj': lambda p: p.add_argument('out_obj', type=str, help='Output file or S3 object name'),
 'key': lambda p: p.add_argument('key', type=str,
@@ -91,22 +98,24 @@ def etag(args):
 etag.args = 'input partsize'.split()
 
 def upload(args):
+    bucket, objpath = args.s3path
     s3 = boto3.client('s3')
-    if args.keyfile: fp = AESFile(args.in_obj, 'rb', key_or_file(args.keyfile))
-    else: fp = open(args.in_obj, 'rb')
-    if args.verbose: print('Upload', args.in_obj, 'to', args.out_obj)
-    resp = s3.upload_fileobj(fp, args.bucket, args.out_obj)
+    if args.keyfile: fp = AESFile(args.input, 'rb', key_or_file(args.keyfile))
+    else: fp = open(args.input, 'rb')
+    if args.verbose: print('Upload', args.input, 'to', bucket, objpath)
+    resp = s3.upload_fileobj(fp, bucket, objpath)
     fp.close()
-upload.args = 'in_obj out_obj bucket keyfile verbose'.split()
+upload.args = 'input s3path keyfile verbose'.split()
 
 def download(args):
+    bucket, objpath = args.s3path
     s3 = boto3.client('s3')
-    if args.keyfile: fp = AESFile(args.out_obj, 'wb', key_or_file(args.keyfile))
-    else: fp = open(args.out_obj, 'wb')
-    if args.verbose: print('Download', args.in_obj, 'to', args.out_obj)
-    resp = s3.download_fileobj(args.bucket, args.in_obj, fp)
+    if args.keyfile: fp = AESFile(args.output, 'wb', key_or_file(args.keyfile))
+    else: fp = open(args.output, 'wb')
+    if args.verbose: print('Download', bucket, objpath, 'to', args.output)
+    resp = s3.download_fileobj(bucket, objpath, fp)
     fp.close()
-download.args = 'in_obj out_obj bucket keyfile verbose'.split()
+download.args = 's3path output keyfile verbose'.split()
 
 def backup(args):
     """Perform backup based on latest Fileson DB state."""

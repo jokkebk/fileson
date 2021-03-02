@@ -118,3 +118,69 @@ user@server:~$ python3 fileson_util.py diff files.fson~1 files.fson -p
 
 Note that you did not have to specify checksum type or directory, as it
 is detected automatically from the Fileson DB.
+
+# Use Fileson for simple backups to local or cloud
+
+Fileson contains a robust set of utilities to make backups locally or
+into S3, either unencrypted or with secure AES256 encryption. For S3
+you need to have `boto3` client configured first.
+
+## Encryption
+
+Encryption is done with 256 bit key that you can generate easily:
+
+```console
+user@server:~$ python3 fileson_backup.py keygen password salt > my.key
+```
+
+Now `my.key` contains a 64-hex key generated with given password and
+salt (with PBKDF2 using AES256 and 1 million iterations by default).
+You can use the key to encrypt and decrypt data.
+
+```console
+user@server:~$ python3 fileson_backup.py encrypt some.txt some.enc my.key
+user@server:~$ python3 fileson_backup.py decrypt some.enc some2.txt my.key
+user@server:~$ diff some.txt some2.txt
+```
+
+## Uploading to S3 and downloading
+
+A simple upload/download client is also provided:
+
+```console
+user@server:~$ python3 fileson_backup.py upload some.txt s3://mybucket/objpath
+user@server:~$ python3 fileson_backup.py download s3://mybucket/objpath some2.txt
+user@server:~$ diff some.txt some2.txt
+```
+
+Just add `-k my.key` to encrypt/decrypt files on the fly with `upload` and `download`.
+
+## Backup up a Fileson-scanned directory
+
+Once you have a Fileson database at hand, you can do a backup run. Certain
+considerations:
+
+1. Base path of files is taken from Fileson DB, so if you used a relative
+path when scanning, backup command needs to be run in the same directory.
+2. To avoid backing up same files over and over, second command is a
+backup logfile, essentially recording SHA1 hashes and locations of files
+backed up.
+3. You need to specify either a local directory or S3 path
+
+Backup log is essentially a Fileson DB for your backup location,
+and it is written line-by-line as backup is progressing. So if the
+backup process gets interrupted, you can just rerun the backup command
+and it should resume with next item that was not yet backed up.
+
+Here is an example of simple backup to a local folder:
+
+```console
+user@server:~$ python3 fileson_scan.py scan db.fson ~/mydir -c sha1
+user@server:~$ python3 fileson_backup.py backup db.fson db_backup.log /mnt/backup
+```
+
+That's it. Once files change, re-run `scan` to update changes and then
+`backup` to upload any added objects.
+
+Note: Support for removing files that no longer exist in `db.fson` from backup
+location is not yet done.
