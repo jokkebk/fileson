@@ -98,16 +98,15 @@ class Fileson(LogDict):
         self[':date_gmt:'] = gmt_str()
 
         ccache = {}
-        missing = set(self.files()) | set(self.dirs())
         if checksum:
             for p in self.files():
                 f = self[p]
                 if isinstance(f, dict) and checksum in f:
                     ccache[make_key(p,f)] = f[checksum]
 
-        startTime = time.time()
-        fileCount, byteCount, nextG = 0, 0, 1
+        missing = set(self.files()) | set(self.dirs())
 
+        startTime, fileCount, byteCount, seenG = time.time(), 0, 0, 0
         for dirName, subdirList, fileList in os.walk(directory):
             p = os.path.relpath(dirName, directory)
             self.set(p, { 'modified_gmt': gmt_str(os.stat(dirName).st_mtime) })
@@ -131,11 +130,9 @@ class Fileson(LogDict):
                 if verbose >= 1:
                     fileCount += 1
                     byteCount += f['size']
-                    if byteCount > nextG * 2**30:
-                        nextG = byteCount // 2**30 + 1;
-                        elapsed = time.time() - startTime
-                        print(fileCount, 'files processed',
-                                '%.1f G in %.2f s' % (byteCount/2**30, elapsed))
+                    if byteCount // 2**30 > seenG:
+                        seenG = byteCount // 2**30;
+                        secs = time.time() - startTime
+                        print(f'{fileCount} files, {seenG:.2f} GiB in {secs}s')
 
-        # Mark missing elements as removed (if not already so)
-        for p in missing: del self[p]
+        for p in missing: del self[p] # remove elements not seen in walk()
