@@ -12,9 +12,10 @@ def sha1(s: object) -> bytes:
 
 # Courtesy of Tom Gardiner at Teppen.io
 # https://teppen.io/2018/10/23/aws_s3_verify_etags/
-def calc_etag(infile, partsize=8388608):
+def calc_etag(infile, partsize=8):
     """Calculate AWS S3 Etag based on partsize."""
     md5_digests = []
+    if partsize < 2**16: partsize *= 2**20
     for chunk in iter(lambda: infile.read(partsize), b''):
       md5_digests.append(hashlib.md5(chunk).digest())
     if len(md5_digests)==1: return md5_digests[0].hex()

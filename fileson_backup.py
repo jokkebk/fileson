@@ -3,7 +3,7 @@ from collections import defaultdict, namedtuple
 from fileson import Fileson, gmt_str, gmt_epoch
 from logdict import LogDict
 from crypt import keygen as kg, AESFile, sha1, calc_etag
-import argparse, os, sys, json, signal, time, hashlib, inspect, shutil
+import argparse, os, sys, json, signal, time, hashlib, inspect, shutil, re
 import boto3
 
 # Return key or if a filename, its contents
@@ -26,6 +26,8 @@ arg_adders = {
     help='Key in hex format or filename of the keyfile'),
 'keyfile': lambda p: p.add_argument('-k', '--keyfile', type=str,
     help='Key in hex format or filename of the keyfile'),
+'partsize': lambda p: p.add_argument('-p', '--partsize', type=int,
+    default=8, help='Multipart upload partsize (default 8 matching boto3)'),
 'iterations': lambda p: p.add_argument('-i', '--iterations', type=str,
     default='1M', help='PBKDF2 iterations (default 1M)'),
 'dbfile': lambda p: p.add_argument('dbfile', type=str,
@@ -85,8 +87,8 @@ def decrypt(args):
 decrypt.args = 'input output key verbose force'.split()
 
 def etag(args):
-    with open(args.input, 'rb') as f: print(calc_etag(f))
-etag.args = 'input'.split()
+    with open(args.input, 'rb') as f: print(calc_etag(f, args.partsize))
+etag.args = 'input partsize'.split()
 
 def upload(args):
     s3 = boto3.client('s3')
@@ -121,9 +123,21 @@ def backup(args):
     if args.keyfile:
         key = key_or_file(args.keyfile)
         log[':keyhash:'] = sha1(key).hex()
-        myargs = namedtuple('myargs', 'input output key verbose force')
-        make_backup = lambda a,b: encrypt(myargs(a, b, key, False, True))
-    else: make_backup = lambda a,b: shutil.copyfile(a, b)
+
+    m = re.match('s3://(\w+)/(.+)', args.destination)
+    if m:
+        bucket, folder = m.group(1), m.group(2)
+        print(bucket, folder)
+        myargs = namedtuple('myargs', 'in_obj out_obj bucket keyfile')
+        make_backup = lambda a,b: upload(myargs(a, folder+'/'+b, bucket,
+            key if args.keyfile else None))
+    else:
+        if args.keyfile:
+            myargs = namedtuple('myargs', 'input output key verbose force')
+            make_backup = lambda a,b: encrypt(myargs(a,
+                os.path.join(args.destination, b), key, False, True))
+        else: make_backup = lambda a,b: shutil.copyfile(a,
+                os.path.join(args.destination, b))
 
     uploaded = { log[p]['sha1']: p for p in log.files() }
 
@@ -135,7 +149,7 @@ def backup(args):
             continue
         name = sha1(seed+o['sha1']).hex() # deterministic random name
         print('Backup', p.split(os.sep)[-1], o['sha1'], 'to', name)
-        make_backup(os.path.join(fs[':directory:'], p), os.path.join(args.destination, name))
+        make_backup(os.path.join(fs[':directory:'], p), name)
         log[name] = { 'sha1': o['sha1'], 'size': o['size'] }
 
     log.endLogging()
