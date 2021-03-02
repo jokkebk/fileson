@@ -94,17 +94,19 @@ def upload(args):
     s3 = boto3.client('s3')
     if args.keyfile: fp = AESFile(args.in_obj, 'rb', key_or_file(args.keyfile))
     else: fp = open(args.in_obj, 'rb')
+    if args.verbose: print('Upload', args.in_obj, 'to', args.out_obj)
     resp = s3.upload_fileobj(fp, args.bucket, args.out_obj)
     fp.close()
-upload.args = 'in_obj out_obj bucket keyfile'.split()
+upload.args = 'in_obj out_obj bucket keyfile verbose'.split()
 
 def download(args):
     s3 = boto3.client('s3')
     if args.keyfile: fp = AESFile(args.out_obj, 'wb', key_or_file(args.keyfile))
     else: fp = open(args.out_obj, 'wb')
+    if args.verbose: print('Download', args.in_obj, 'to', args.out_obj)
     resp = s3.download_fileobj(args.bucket, args.in_obj, fp)
     fp.close()
-download.args = 'in_obj out_obj bucket keyfile'.split()
+download.args = 'in_obj out_obj bucket keyfile verbose'.split()
 
 def backup(args):
     """Perform backup based on latest Fileson DB state."""
@@ -127,10 +129,9 @@ def backup(args):
     m = re.match('s3://(\w+)/(.+)', args.destination)
     if m:
         bucket, folder = m.group(1), m.group(2)
-        print(bucket, folder)
-        myargs = namedtuple('myargs', 'in_obj out_obj bucket keyfile')
+        myargs = namedtuple('myargs', 'in_obj out_obj bucket keyfile verbose')
         make_backup = lambda a,b: upload(myargs(a, folder+'/'+b, bucket,
-            key if args.keyfile else None))
+            key if args.keyfile else None, True))
     else:
         if args.keyfile:
             myargs = namedtuple('myargs', 'input output key verbose force')
