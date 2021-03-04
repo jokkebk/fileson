@@ -21,8 +21,8 @@ def key_or_file(key):
 
 # These are the different argument types that can be added to a command
 arg_adders = {
-'password': lambda p: p.add_argument('password', type=str, help='Password'),
-'salt': lambda p: p.add_argument('salt', type=str, help='Salt'),
+'password': lambda p: p.add_argument('password', type=str, nargs='?', help='Password', default=None),
+'salt': lambda p: p.add_argument('salt', type=str, nargs='?', help='Salt', default=None),
 'input': lambda p: p.add_argument('input', type=str, help='Input file'),
 'output': lambda p: p.add_argument('output', type=str, help='Output file'),
 's3path': lambda p: p.add_argument('s3path', type=str, action=S3Action,
@@ -60,6 +60,13 @@ def close_logs():
 # Function per command
 def keygen(args):
     """Create a 32 byte key for AES256 encryption with a password and salt."""
+    if not args.password:
+        if args.verbose: print('No password specified, generating random key')
+        print(os.urandom(32).hex())
+        return
+    if not args.salt:
+        print('Specify password AND salt or neither!')
+        return
     iterations = int(args.iterations.replace('M', '000k').replace('k', '000'))
     start = time.time()
     keyhex = kg(args.password, args.salt, iterations).hex()

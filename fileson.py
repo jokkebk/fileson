@@ -53,7 +53,7 @@ class Fileson(LogDict):
     @classmethod
     def load(cls: 'Fileson', dbfile: str) -> 'Fileson':
         """Overloaded class method to support f.fson~1 history syntax."""
-        m = re.match('(.*)~(\d+)', dbfile)
+        m = re.match(r'(.*)~(\d+)', dbfile)
         if m: dbfile = m.group(1)
         fs = super(Fileson, cls).load(dbfile)
         if m: end = (':scan:', fs[':scan:'] - int(m.group(2)) + 1)
@@ -83,7 +83,7 @@ class Fileson(LogDict):
 
         Args:
             directory (str): Directory to scan
-            \*\*kwargs: Booleans 'verbose' and 'strict' control behaviour
+            **kwargs: Booleans 'verbose' and 'strict' control behaviour
         """
         checksum = kwargs.get('checksum', None)
         verbose = kwargs.get('verbose', 0)
@@ -107,7 +107,7 @@ class Fileson(LogDict):
         missing = set(self.files()) | set(self.dirs())
 
         startTime, fileCount, byteCount, seenG = time.time(), 0, 0, 0
-        for dirName, subdirList, fileList in os.walk(directory):
+        for dirName, _, fileList in os.walk(directory):
             p = os.path.relpath(dirName, directory)
             self.set(p, { 'modified_gmt': gmt_str(os.stat(dirName).st_mtime) })
             missing.discard(p)
@@ -131,7 +131,7 @@ class Fileson(LogDict):
                     fileCount += 1
                     byteCount += f['size']
                     if byteCount // 2**30 > seenG:
-                        seenG = byteCount // 2**30;
+                        seenG = byteCount // 2**30
                         secs = time.time() - startTime
                         print(f'{fileCount} files, {seenG:.2f} GiB in {secs}s')
 

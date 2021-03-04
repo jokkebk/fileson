@@ -39,7 +39,7 @@ def duplicates(args):
 
     fs = Fileson.load_or_scan(args.db_or_dir, checksum=args.checksum)
     files = [(p,fs[p]) for p in fs.files() if fs[p]['size'] >= minsize]
-    checksum = fs.get(':checksum:', 'size')
+    checksum = fs.get(':checksum:', None) or 'size'
 
     if checksum == 'size': print('No checksum, using file size!')
         
