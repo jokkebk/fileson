@@ -42,6 +42,8 @@ arg_adders = {
 'output': lambda p: p.add_argument('output', type=str, help='Output file'),
 's3path': lambda p: p.add_argument('s3path', type=str, action=S3Action,
     help='S3 path in form s3://bucket/objpath'),
+'deep_archive': lambda p: p.add_argument('-d', '--deep-archive', action='store_true',
+    help='Upload to S3 DEEP_ARCHIVE storage class'),
 'in_obj': lambda p: p.add_argument('in_obj', type=str, help='Input file or S3 object name'),
 'out_obj': lambda p: p.add_argument('out_obj', type=str, help='Output file or S3 object name'),
 'key': lambda p: p.add_argument('key', type=str,
@@ -125,9 +127,11 @@ def upload(args):
     if args.keyfile: fp = AESFile(args.input, 'rb', key_or_file(args.keyfile))
     else: fp = open(args.input, 'rb')
     if args.verbose: print('Upload', args.input, 'to', bucket, objpath)
-    s3.upload_fileobj(fp, bucket, objpath, Callback=BotoProgress('upload'))
+    extra = {'Callback': BotoProgress('upload')}
+    if args.deep_archive: extra['ExtraArgs'] = {'StorageClass': 'DEEP_ARCHIVE'}
+    s3.upload_fileobj(fp, bucket, objpath, **extra)
     fp.close()
-upload.args = 'input s3path keyfile verbose'.split()
+upload.args = 'input s3path keyfile deep_archive verbose'.split()
 
 def download(args):
     bucket, objpath = args.s3path
@@ -160,9 +164,9 @@ def backup(args):
     m = re.match('s3://(\w+)/(.+)', args.destination)
     if m:
         bucket, folder = m.group(1), m.group(2)
-        myargs = namedtuple('myargs', 'in_obj out_obj bucket keyfile verbose')
-        make_backup = lambda a,b: upload(myargs(a, folder+'/'+b, bucket,
-            key if args.keyfile else None, True))
+        myargs = namedtuple('myargs', 'input s3path keyfile deep_archive verbose')
+        make_backup = lambda a,b: upload(myargs(a, (bucket, folder+'/'+b),
+            key if args.keyfile else None, args.deep_archive, True))
     else:
         if args.keyfile:
             myargs = namedtuple('myargs', 'input output key verbose force')
@@ -185,7 +189,7 @@ def backup(args):
         log[name] = { 'sha1': o['sha1'], 'size': o['size'] }
 
     log.endLogging()
-backup.args = 'dbfile logfile destination keyfile verbose'.split() # args to add
+backup.args = 'dbfile logfile destination keyfile deep_archive verbose'.split() # args to add
 
 def restore(args):
     """Restore backup based on Fileson DB and backup log."""
