@@ -4,7 +4,22 @@ from fileson import Fileson, gmt_str, gmt_epoch
 from logdict import LogDict
 from crypt import keygen as kg, AESFile, sha1, calc_etag
 import argparse, os, sys, json, signal, time, hashlib, inspect, shutil, re
-import boto3
+import boto3, threading
+
+class BotoProgress(object):
+    def __init__(self, ptype):
+        self._seen = 0
+        self._last = 0
+        self._type = ptype
+        self._lock = threading.Lock()
+
+    def __call__(self, bytes_amount):
+        with self._lock:
+            self._seen += bytes_amount
+            if self._last + 2**20 > self._seen: return # every 1 MB
+            sys.stdout.write("\r%.2f MB %sed" % (self._seen / 2**20, self._type))
+            sys.stdout.flush()
+            self._last = self._seen
 
 class S3Action(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -110,7 +125,7 @@ def upload(args):
     if args.keyfile: fp = AESFile(args.input, 'rb', key_or_file(args.keyfile))
     else: fp = open(args.input, 'rb')
     if args.verbose: print('Upload', args.input, 'to', bucket, objpath)
-    resp = s3.upload_fileobj(fp, bucket, objpath)
+    s3.upload_fileobj(fp, bucket, objpath, Callback=BotoProgress('upload'))
     fp.close()
 upload.args = 'input s3path keyfile verbose'.split()
 
@@ -120,7 +135,7 @@ def download(args):
     if args.keyfile: fp = AESFile(args.output, 'wb', key_or_file(args.keyfile))
     else: fp = open(args.output, 'wb')
     if args.verbose: print('Download', bucket, objpath, 'to', args.output)
-    resp = s3.download_fileobj(bucket, objpath, fp)
+    s3.download_fileobj(bucket, objpath, fp, Callback=BotoProgress('download'))
     fp.close()
 download.args = 's3path output keyfile verbose'.split()
 

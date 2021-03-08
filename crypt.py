@@ -65,7 +65,7 @@ class AESFile:
         if not mode in ('wb', 'rb'): 
             raise RuntimeError('Only rb and wb modes supported!')
 
-        self.pos = 0
+        self._pos = 0
         self.key = key
         self.mode = mode
         self.fp = open(filename, mode)
@@ -84,25 +84,25 @@ class AESFile:
     def write(self, data : bytes) -> int:
         """Write data and decrypt on the fly. First 16 bytes absorbed as iv."""
         datalen = len(data)
-        if self.pos < 16:
-            ivlen = min(16-self.pos, datalen)
-            self.iv[self.pos:self.pos+ivlen] = data[:ivlen]
-            self.pos += ivlen
-            if self.pos == 16: self.__initAES() # ready to init now
+        if self._pos < 16:
+            ivlen = min(16-self._pos, datalen)
+            self.iv[self._pos:self._pos+ivlen] = data[:ivlen]
+            self._pos += ivlen
+            if self._pos == 16: self.__initAES() # ready to init now
             data = data[ivlen:]
-        if data: self.pos += self.fp.write(self.obj.decrypt(data))
+        if data: self._pos += self.fp.write(self.obj.decrypt(data))
         return datalen
 
     def read(self, size: int=-1) -> bytes:
         """Read data and encrypt on the fly. First 16 bytes returned are iv."""
         ivpart = b''
-        if self.pos < 16:
+        if self._pos < 16:
             if size == -1: ivpart = self.iv
             else:
-                ivpart = self.iv[self.pos:min(16, self.pos+size)]
+                ivpart = self.iv[self._pos:min(16, self._pos+size)]
                 size -= len(ivpart)
         enpart = self.obj.encrypt(self.fp.read(size)) if size else b''
-        self.pos += len(ivpart) + len(enpart)
+        self._pos += len(ivpart) + len(enpart)
         return ivpart + enpart
 
     def tell(self) -> int:
@@ -111,7 +111,7 @@ class AESFile:
         Note that when reading, goes 16 bytes further than the file
         being read, due to the fact that iv is injected to start.
         """
-        return self.pos
+        return self._pos
 
     # only in read mode (encrypting)
     def seek(self, offset: int, whence: int=0) -> None:
@@ -128,14 +128,15 @@ class AESFile:
         Raises:
             RuntimeError: If offset is nonzero
         """
+        if whence==0 and offset==self._pos: return # nop
         if offset: raise RuntimeError('Only seek(0, whence) supported')
 
         self.fp.seek(offset, whence) # offset=0 works for all whences
         if whence==0: # absolute positioning, offset=0
-            self.pos = 0
+            self._pos = 0
             self.__initAES()
         elif whence==2: # relative to file end, offset=0
-            self.pos = 16 + self.fp.tell()
+            self._pos = 16 + self.fp.tell()
 
     def close(self) -> None:
         """Close the file stream."""
