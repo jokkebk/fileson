@@ -3,35 +3,6 @@ from collections import defaultdict
 from fileson import Fileson
 import argparse, os, sys, json, random, inspect
 
-# These are the different argument types that can be added to a command
-arg_adders = {
-'checksum': lambda p: p.add_argument('-c', '--checksum', type=str,
-    choices=Fileson.summer.keys(), default=None,
-    help='Checksum method (if relevant in the context)'),
-'db_or_dir': lambda p: p.add_argument('db_or_dir', type=str,
-    help='Database file or directory, supports db.fson~1 history mode.'),
-'dbfile': lambda p: p.add_argument('dbfile', type=str,
-    help='Database file (JSON format)'),
-'delta': lambda p: p.add_argument('delta', nargs='?',
-    type=argparse.FileType('w'), default='-',
-    help='filename for delta or - for stdout (default)'),
-'dest': lambda p: p.add_argument('dest', type=str, help='Destination DB'),
-'dir': lambda p: p.add_argument('dir', nargs='?', type=str, default=None,
-    help='Directory to scan'),
-'force': lambda p: p.add_argument('-f', '--force', action='store_true',
-    help='Force action without additional prompts'),
-'minsize': lambda p: p.add_argument('-m', '--minsize', type=str, default='0',
-    help='Minimum size (e.g. 100, 10k, 1M)'),
-'percent': lambda p: p.add_argument('percent', type=int,
-    help='Percentage of checksums to check'),
-'src': lambda p: p.add_argument('src', type=str,
-    help='Source DB, use src.fson~1 to access previous version etc.'),
-'strict': lambda p: p.add_argument('-s', '--strict', action='store_true',
-    help='Skip checksum only on full path (not just name) match'),
-'verbose': lambda p: p.add_argument('-v', '--verbose', action='count',
-    default=0, help='Print verbose status. Repeat for even more.'),
-        }
-
 # Function per command
 def duplicates(args):
     """Look for duplicates using Fileson DB."""
@@ -141,18 +112,51 @@ def scan(args):
         if args.verbose and args.checksum:
             print('Using checksum', args.checksum, 'from DB')
 
-    fs.scan(args.dir, checksum=args.checksum, verbose=args.verbose, strict=args.strict)
-    fs.save(args.dbfile)
-scan.args = 'dbfile dir checksum strict verbose'.split() # args to add
+    fs.scan(args.dir, checksum=args.checksum, verbose=args.verbose, strict=args.strict,
+        skip=args.skip)
+    #fs.save(args.dbfile)
+scan.args = 'dbfile dir checksum skip strict verbose'.split() # args to add
 
 if __name__ == "__main__":
+    # These are the different argument types that can be added to a command
+    arg_adders = {
+    'checksum': lambda p: p.add_argument('-c', '--checksum', type=str,
+        choices=Fileson.summer.keys(), default=None,
+        help='Checksum method (if relevant in the context)'),
+    'db_or_dir': lambda p: p.add_argument('db_or_dir', type=str,
+        help='Database file or directory, supports db.fson~1 history mode.'),
+    'dbfile': lambda p: p.add_argument('dbfile', type=str,
+        help='Database file (JSON format)'),
+    'delta': lambda p: p.add_argument('delta', nargs='?',
+        type=argparse.FileType('w'), default='-',
+        help='filename for delta or - for stdout (default)'),
+    'dest': lambda p: p.add_argument('dest', type=str, help='Destination DB'),
+    'dir': lambda p: p.add_argument('dir', nargs='?', type=str, default=None,
+        help='Directory to scan'),
+    'force': lambda p: p.add_argument('-f', '--force', action='store_true',
+        help='Force action without additional prompts'),
+    'minsize': lambda p: p.add_argument('-m', '--minsize', type=str, default='0',
+        help='Minimum size (e.g. 100, 10k, 1M)'),
+    'percent': lambda p: p.add_argument('percent', type=int,
+        help='Percentage of checksums to check'),
+    'skip': lambda p: p.add_argument('-S', '--skip', type=str, nargs='?', action='append',
+        help='Skip files/folders based on path fragment (repeat for multiple)', default=None),
+    'src': lambda p: p.add_argument('src', type=str,
+        help='Source DB, use src.fson~1 to access previous version etc.'),
+    'strict': lambda p: p.add_argument('-s', '--strict', action='store_true',
+        help='Skip checksum only on full path (not just name) match'),
+    'verbose': lambda p: p.add_argument('-v', '--verbose', action='count',
+        default=0, help='Print verbose status. Repeat for even more.'),
+            }
+
     # create the top-level parser
     parser = argparse.ArgumentParser(description='Fileson database utilities')
     subparsers = parser.add_subparsers(help='sub-command help')
 
     # add commands using function metadata and properties
     for name,cmd in inspect.getmembers(sys.modules[__name__]):
-        if inspect.isfunction(cmd) and hasattr(cmd, 'args'):
+        if inspect.isfunction(cmd) and hasattr(cmd, 'args') \
+                and cmd.__module__ == __name__:
             cmd.parser = subparsers.add_parser(cmd.__name__, description=cmd.__doc__)
             for argname in cmd.args: arg_adders[argname](cmd.parser)
             cmd.parser.set_defaults(func=cmd)

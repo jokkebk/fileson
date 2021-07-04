@@ -34,46 +34,6 @@ def key_or_file(key):
         with open(key, 'r') as f: key = ''.join(f.read().split())
     return bytes.fromhex(key)
 
-# These are the different argument types that can be added to a command
-arg_adders = {
-'password': lambda p: p.add_argument('password', type=str, nargs='?', help='Password', default=None),
-'salt': lambda p: p.add_argument('salt', type=str, nargs='?', help='Salt', default=None),
-'input': lambda p: p.add_argument('input', type=str, help='Input file'),
-'output': lambda p: p.add_argument('output', type=str, help='Output file'),
-'s3path': lambda p: p.add_argument('s3path', type=str, action=S3Action,
-    help='S3 path in form s3://bucket/objpath'),
-'deep_archive': lambda p: p.add_argument('-d', '--deep-archive', action='store_true',
-    help='Upload to S3 DEEP_ARCHIVE storage class'),
-'in_obj': lambda p: p.add_argument('in_obj', type=str, help='Input file or S3 object name'),
-'out_obj': lambda p: p.add_argument('out_obj', type=str, help='Output file or S3 object name'),
-'key': lambda p: p.add_argument('key', type=str,
-    help='Key in hex format or filename of the keyfile'),
-'keyfile': lambda p: p.add_argument('-k', '--keyfile', type=str,
-    help='Key in hex format or filename of the keyfile'),
-'partsize': lambda p: p.add_argument('-p', '--partsize', type=int,
-    default=8, help='Multipart upload partsize (default 8 matching boto3)'),
-'iterations': lambda p: p.add_argument('-i', '--iterations', type=str,
-    default='1M', help='PBKDF2 iterations (default 1M)'),
-'dbfile': lambda p: p.add_argument('dbfile', type=str,
-    help='Database file (JSON format)'),
-'logfile': lambda p: p.add_argument('logfile', type=str,
-    help='Logfile to append all operations to'),
-'source': lambda p: p.add_argument('source', type=str,
-    help='Source directory'),
-'destination': lambda p: p.add_argument('destination', type=str,
-    help='Destination directory'),
-'dir': lambda p: p.add_argument('dir', nargs='?', type=str, default=None,
-    help='Directory to scan'),
-'verbose': lambda p: p.add_argument('-v', '--verbose', action='count',
-    default=0, help='Print verbose status. Repeat for even more.'),
-'force': lambda p: p.add_argument('-f', '--force', action='store_true',
-    help='Force action without additional prompts'),
-        }
-
-logfiles = []
-def close_logs():
-    while logfiles: logfiles.pop().close()
-
 # Function per command
 def keygen(args):
     """Create a 32 byte key for AES256 encryption with a password and salt."""
@@ -178,17 +138,22 @@ def backup(args):
     uploaded = { log[p]['sha1']: p for p in log.files() }
 
     seed = log[':date_gmt:'] # for backup filename generation
-    for p in fs.files():
-        o = fs[p]
-        if o['sha1'] in uploaded:
-            if args.verbose: print('Already uploaded', p)
-            continue
-        name = sha1(seed+o['sha1']).hex() # deterministic random name
-        print('Backup', p.split(os.sep)[-1], o['sha1'], 'to', name)
-        make_backup(os.path.join(fs[':directory:'], p), name)
-        log[name] = { 'sha1': o['sha1'], 'size': o['size'] }
+    
+    try:
+        for p in fs.files():
+            o = fs[p]
+            if o['sha1'] in uploaded:
+                if args.verbose: print('Already uploaded', p)
+                continue
+            name = sha1(seed+o['sha1']).hex() # deterministic random name
+            print('Backup', p.split(os.sep)[-1], o['sha1'], 'to', name)
+            make_backup(os.path.join(fs[':directory:'], p), name)
+            log[name] = { 'sha1': o['sha1'], 'size': o['size'] }
+    except KeyboardInterrupt:
+        print('Aborted while backing up. Restart later to continue')
 
     log.endLogging()
+    print('Closed log file.')
 backup.args = 'dbfile logfile destination keyfile deep_archive verbose'.split() # args to add
 
 def restore(args):
@@ -233,8 +198,41 @@ def restore(args):
 restore.args = 'dbfile logfile source destination keyfile verbose'.split() # args to add
 
 if __name__ == "__main__":
-    # register signal handler to close any open log files
-    signal.signal(signal.SIGINT, close_logs)
+    # These are the different argument types that can be added to a command
+    arg_adders = {
+    'password': lambda p: p.add_argument('password', type=str, nargs='?', help='Password', default=None),
+    'salt': lambda p: p.add_argument('salt', type=str, nargs='?', help='Salt', default=None),
+    'input': lambda p: p.add_argument('input', type=str, help='Input file'),
+    'output': lambda p: p.add_argument('output', type=str, help='Output file'),
+    's3path': lambda p: p.add_argument('s3path', type=str, action=S3Action,
+        help='S3 path in form s3://bucket/objpath'),
+    'deep_archive': lambda p: p.add_argument('-d', '--deep-archive', action='store_true',
+        help='Upload to S3 DEEP_ARCHIVE storage class'),
+    'in_obj': lambda p: p.add_argument('in_obj', type=str, help='Input file or S3 object name'),
+    'out_obj': lambda p: p.add_argument('out_obj', type=str, help='Output file or S3 object name'),
+    'key': lambda p: p.add_argument('key', type=str,
+        help='Key in hex format or filename of the keyfile'),
+    'keyfile': lambda p: p.add_argument('-k', '--keyfile', type=str,
+        help='Key in hex format or filename of the keyfile'),
+    'partsize': lambda p: p.add_argument('-p', '--partsize', type=int,
+        default=8, help='Multipart upload partsize (default 8 matching boto3)'),
+    'iterations': lambda p: p.add_argument('-i', '--iterations', type=str,
+        default='1M', help='PBKDF2 iterations (default 1M)'),
+    'dbfile': lambda p: p.add_argument('dbfile', type=str,
+        help='Database file (JSON format)'),
+    'logfile': lambda p: p.add_argument('logfile', type=str,
+        help='Logfile to append all operations to'),
+    'source': lambda p: p.add_argument('source', type=str,
+        help='Source directory'),
+    'destination': lambda p: p.add_argument('destination', type=str,
+        help='Destination directory'),
+    'dir': lambda p: p.add_argument('dir', nargs='?', type=str, default=None,
+        help='Directory to scan'),
+    'verbose': lambda p: p.add_argument('-v', '--verbose', action='count',
+        default=0, help='Print verbose status. Repeat for even more.'),
+    'force': lambda p: p.add_argument('-f', '--force', action='store_true',
+        help='Force action without additional prompts'),
+            }
 
     # create the top-level parser
     parser = argparse.ArgumentParser(description='Fileson backup utilities')
@@ -242,7 +240,8 @@ if __name__ == "__main__":
 
     # add commands using function metadata and properties
     for name,cmd in inspect.getmembers(sys.modules[__name__]):
-        if inspect.isfunction(cmd) and hasattr(cmd, 'args'):
+        if inspect.isfunction(cmd) and hasattr(cmd, 'args') \
+                and cmd.__module__ == __name__:
             cmd.parser = subparsers.add_parser(cmd.__name__, description=cmd.__doc__)
             for argname in cmd.args: arg_adders[argname](cmd.parser)
             cmd.parser.set_defaults(func=cmd)
