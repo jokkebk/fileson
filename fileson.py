@@ -123,7 +123,7 @@ class Fileson(LogDict):
             for fname in fileList:
                 fpath = os.path.join(dirName, fname)
                 p = os.path.relpath(fpath, directory) # relative for csLookup
-
+                #continue
                 if skip(p): # Skip a file
                     if verbose: print('Skipping file', p)
                     continue

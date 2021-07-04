@@ -98,7 +98,7 @@ copy.args = 'src dest force'.split() # args to add
 def scan(args):
     """Create fileson JSON file database."""
     fs = Fileson.load(args.dbfile)
-
+    
     if not args.dir:
         if not ':directory:' in fs:
             print('No directory specified and none in DB!')
@@ -139,8 +139,8 @@ if __name__ == "__main__":
         help='Minimum size (e.g. 100, 10k, 1M)'),
     'percent': lambda p: p.add_argument('percent', type=int,
         help='Percentage of checksums to check'),
-    'skip': lambda p: p.add_argument('-S', '--skip', type=str, nargs='?', action='append',
-        help='Skip files/folders based on path fragment (repeat for multiple)', default=None),
+    'skip': lambda p: p.add_argument('-S', '--skip', type=str, nargs='?', action='append', default=[],
+        help='Skip files/folders based on path fragment (repeat for multiple)'),
     'src': lambda p: p.add_argument('src', type=str,
         help='Source DB, use src.fson~1 to access previous version etc.'),
     'strict': lambda p: p.add_argument('-s', '--strict', action='store_true',
