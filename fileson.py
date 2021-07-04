@@ -87,6 +87,7 @@ class Fileson(LogDict):
         """
         checksum = kwargs.get('checksum', None)
         verbose = kwargs.get('verbose', 0)
+        skiplist = kwargs.get('skip', [])
         strict = kwargs.get('strict', False)
         make_key = lambda p,f: (p if strict else p.split(os.sep)[-1],
                 f['modified_gmt'], f['size'])
@@ -105,16 +106,28 @@ class Fileson(LogDict):
                     ccache[make_key(p,f)] = f[checksum]
 
         missing = set(self.files()) | set(self.dirs())
+        skip = lambda p: any(pat in p for pat in skiplist)
 
         startTime, fileCount, byteCount, seenG = time.time(), 0, 0, 0
-        for dirName, _, fileList in os.walk(directory):
+        for dirName, dirs, fileList in os.walk(directory):
             p = os.path.relpath(dirName, directory)
+
+            if skip(p): # Skip whole directory and its files
+                if verbose: print('Skipping', p)
+                dirs.clear() # avoid skipping subdirs
+                continue
+
             self.set(p, { 'modified_gmt': gmt_str(os.stat(dirName).st_mtime) })
             missing.discard(p)
 
             for fname in fileList:
                 fpath = os.path.join(dirName, fname)
                 p = os.path.relpath(fpath, directory) # relative for csLookup
+
+                if skip(p): # Skip a file
+                    if verbose: print('Skipping file', p)
+                    continue
+                    
                 s = os.stat(fpath)
                 f = { 'size': s.st_size, 'modified_gmt': gmt_str(s.st_mtime) }
 
