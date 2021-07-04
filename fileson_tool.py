@@ -38,11 +38,12 @@ def scan(args):
         fileson = f'{entry}.fson'
         skip = conf['skip'].split('\n') if 'skip' in conf else []
         strict = config.getboolean(entry, 'strict', fallback=False)
+        checksum = conf.get('checksum', 'sha1')
         
-        print(f'Scanning {entry}...', skip, strict)
+        print(f'Scanning {entry}...')
 
-        myargs = namedtuple('myargs', 'dbfile dir checksum skip strict verbose')
-        util_scan(myargs(fileson, config[entry]['folder'], None, skip, strict, args.verbose))
+        myargs = namedtuple('myargs', 'dbfile dir checksum simulate skip strict verbose')
+        util_scan(myargs(fileson, config[entry]['folder'], checksum, False, skip, strict, args.verbose))
 scan.args = 'entry verbose'.split() # args to add
 
 if __name__ == "__main__":

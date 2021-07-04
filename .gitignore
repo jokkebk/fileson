@@ -1,4 +1,4 @@
-*.json 
+*.log 
 *.fson 
 __pycache__ 
 docs/doctrees/

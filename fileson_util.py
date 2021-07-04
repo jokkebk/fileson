@@ -114,8 +114,8 @@ def scan(args):
 
     fs.scan(args.dir, checksum=args.checksum, verbose=args.verbose, strict=args.strict,
         skip=args.skip)
-    #fs.save(args.dbfile)
-scan.args = 'dbfile dir checksum skip strict verbose'.split() # args to add
+    if not args.simulate: fs.save(args.dbfile)
+scan.args = 'dbfile dir checksum simulate skip strict verbose'.split() # args to add
 
 if __name__ == "__main__":
     # These are the different argument types that can be added to a command
@@ -143,6 +143,8 @@ if __name__ == "__main__":
         help='Skip files/folders based on path fragment (repeat for multiple)'),
     'src': lambda p: p.add_argument('src', type=str,
         help='Source DB, use src.fson~1 to access previous version etc.'),
+    'simulate': lambda p: p.add_argument('-i', '--simulate', action='store_true',
+        help='Simulate only (no saving)'),
     'strict': lambda p: p.add_argument('-s', '--strict', action='store_true',
         help='Skip checksum only on full path (not just name) match'),
     'verbose': lambda p: p.add_argument('-v', '--verbose', action='count',

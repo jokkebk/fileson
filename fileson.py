@@ -13,12 +13,11 @@ except ImportError: from scandir import scandir
 
 def scantree(path, skip=lambda x: False):
     """Recursively yield DirEntry objects for given directory."""
-    for entry in scandir(path):
-        if skip(entry.path): continue
-
-        yield entry # the entry itself
-        if entry.is_dir(follow_symlinks=False):
-            yield from scantree(entry.path)
+    for e in scandir(path):
+        if skip(e.path): continue
+        yield e # the entry itself
+        if e.is_dir(follow_symlinks=False):
+            yield from scantree(e.path, skip)
 
 def gmt_str(mtime: int=None) -> str:
     """Convert st_mtime to GMT string."""

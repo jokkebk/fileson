@@ -98,7 +98,7 @@ class LogDict(MutableMapping):
         """Create a new LogDict from a slice of operations log.
 
         As all mutations are logged, you can easily use key changes
-        are markers to construct a partial LogDict. Just specify
+        as markers to construct a partial LogDict. Just specify
         beginning and end (or None to use log start/end). Deleting
         non-existing nodes is automatically skipped.
 
