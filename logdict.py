@@ -47,23 +47,21 @@ class LogDict(MutableMapping):
 
     def startLogging(self, filename: str) -> None:
         """Start AOF logging.
+        
+        Does nothing if already logging, so safe to call multiple times.
 
         Args:
             filename (str): File to write to
-        Raises:
-            RuntimeError: If already logging
         """
-        if self.__logfile: raise RuntimeError('Already logging!')
-        self.__logfile = open(filename, 'a', encoding='utf8', buffering=1)
+        if not self.__logfile or self.__logfile.closed:
+            self.__logfile = open(filename, 'at', encoding='utf8', buffering=1)
 
     def endLogging(self) -> None:
         """End AOF logging.
-
-        Raises:
-            RuntimeError: If not logging
+        
+        Does nothing if already closed, so safe to call multiple times.
         """
-        if not self.__logfile: raise RuntimeError('Not logging!')
-        self.__logfile.close()
+        if self.__logfile and not self.__logfile.closed: self.__logfile.close()
 
     def save(self, filename: str) -> None:
         """Save log to file.
