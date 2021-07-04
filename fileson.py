@@ -7,6 +7,19 @@ from typing import Any, Tuple, Generator
 from logdict import LogDict
 from hash import sha_file
 
+# Speed up scanning with scandir in Python 3.5 (or PIP package)
+try: from os import scandir
+except ImportError: from scandir import scandir
+
+def scantree(path, skip=lambda x: False):
+    """Recursively yield DirEntry objects for given directory."""
+    for entry in scandir(path):
+        if skip(entry.path): continue
+
+        yield entry # the entry itself
+        if entry.is_dir(follow_symlinks=False):
+            yield from scantree(entry.path)
+
 def gmt_str(mtime: int=None) -> str:
     """Convert st_mtime to GMT string."""
     return time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(mtime))
@@ -109,36 +122,23 @@ class Fileson(LogDict):
         skip = lambda p: any(pat in p for pat in skiplist)
 
         startTime, fileCount, byteCount, seenG = time.time(), 0, 0, 0
-        for dirName, dirs, fileList in os.walk(directory):
-            p = os.path.relpath(dirName, directory)
 
-            if skip(p): # Skip whole directory and its files
-                if verbose: print('Skipping', p)
-                dirs.clear() # avoid skipping subdirs
-                continue
-
-            self.set(p, { 'modified_gmt': gmt_str(os.stat(dirName).st_mtime) })
+        for e in scantree(directory, skip):
+            p = os.path.relpath(e.path, directory)
             missing.discard(p)
-
-            for fname in fileList:
-                fpath = os.path.join(dirName, fname)
-                p = os.path.relpath(fpath, directory) # relative for csLookup
-                #continue
-                if skip(p): # Skip a file
-                    if verbose: print('Skipping file', p)
-                    continue
-                    
-                s = os.stat(fpath)
-                f = { 'size': s.st_size, 'modified_gmt': gmt_str(s.st_mtime) }
+            if e.is_dir(follow_symlinks=False):
+                self.set(p, { 'modified_gmt': gmt_str(e.stat().st_mtime) })
+            else:
+                f = { 'size': e.stat().st_size,
+                      'modified_gmt': gmt_str(e.stat().st_mtime) }
 
                 if checksum:
                     if verbose > 1 and not make_key(p,f) in ccache:
                         print(checksum, p)
                     f[checksum] = ccache.get(make_key(p,f), None) or \
-                            Fileson.summer[checksum](fpath, f)
+                            Fileson.summer[checksum](e.path, f)
 
                 self.set(p, f)
-                missing.discard(p)
 
                 if verbose >= 1:
                     fileCount += 1
@@ -148,4 +148,6 @@ class Fileson(LogDict):
                         secs = time.time() - startTime
                         print(f'{fileCount} files, {seenG:.2f} GiB in {secs}s')
 
-        for p in missing: del self[p] # remove elements not seen in walk()
+        for p in missing:
+            if verbose > 1: print('Removed missing entry', p)
+            del self[p] # remove elements not seen this time
