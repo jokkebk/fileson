@@ -5,12 +5,42 @@ use them to do various things, like compare differences between two
 databases. There are a few key files:
 
 * `fileson.py` contains `Fileson` class to read, manipulate and write
-Fileson databases.
+Fileson databases. Relies on `logdict.py`, a logging-enabled hashmap.
 * `fileson_util.py` is a command-line toolkit to create Fileson
 databases and do useful things with them
+* `fileson_backup.py` contains helper logic for creating crypto keys,
+encryption/decryption, upload/download from S3, and most importantly,
+backup/restore functionality.
+| `fileson_tool.py` is a config-based interface to simple backups.
 
 API documentation (everything very much subject to change) available
 at https://fileson.readthedocs.io/en/latest/
+
+## Quickstart to backup
+
+If you are not that interested in details of this library, set up your
+backup process in a few straightforward steps:
+
+1. Sign up for AWS and create an S3 bucket.
+2. Create a new identity that has privileges for writing to that bucket. Yes, you will need
+to google 'grant identity access to s3 bucket' for how to do this.
+3. Use something like S3 Browser to check you can upload to your bucket.
+4. Edit the included `fileson.ini` (and create an encryption key if you
+want encrypted backups, see the comments inside the ini file)
+5. Run `python3 fileson_tool.py scan` to create the `.fson` files for
+your backup entries.
+6. Run `python3 fileson_tool.py backup` to back everything up. This will
+take long, so maybe use `-e entryname` to do it one by one.
+7. Repeat from (5) whenever you want to update the backup!
+
+The backup process should tolerate interruptions with ctrl-c and carry on
+where it left later (it logs every upload and flushes the log to disk
+after every file).
+
+Tip: You may want to have the `fileson.ini` in a separate directory and
+run the `scan` and `backup` commands from there, so you have a nice folder
+to (also) back up to your cloud -- encrypted and name-obfuscated back up
+files are of little use without the `.fson` and `.log` files!
 
 ## Create a Fileson database
 
