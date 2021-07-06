@@ -18,20 +18,28 @@ at https://fileson.readthedocs.io/en/latest/
 
 ## Quickstart to backup
 
-If you are not that interested in details of this library, set up your
+If you are not that interested in the details of this library, set up your
 backup process in a few straightforward steps:
+
+### Prerequisites (S3 and boto3)
 
 1. Sign up for AWS and create an S3 bucket.
 2. Create a new identity that has privileges for writing to that bucket. Yes, you will need
 to google 'grant identity access to s3 bucket' for how to do this.
-3. Use something like S3 Browser to check you can upload to your bucket.
-4. Edit the included `fileson.ini` (and create an encryption key if you
+3. Use something like S3 Browser to check you can upload to your bucket with your
+newly created credentials.
+4. Get boto3 for Python and configure the credentials. Maybe even do a test with the S3
+sample code (boto3 quickstart documentation is excellent)
+
+### Using the fileson_tool.py
+
+1. Edit the included `fileson.ini` (and create an encryption key if you
 want encrypted backups, see the comments inside the ini file)
-5. Run `python3 fileson_tool.py scan` to create the `.fson` files for
+2. Run `python3 fileson_tool.py scan` to create the `.fson` files for
 your backup entries.
-6. Run `python3 fileson_tool.py backup` to back everything up. This will
+3. Run `python3 fileson_tool.py backup` to back everything up. This will
 take long, so maybe use `-e entryname` to do it one by one.
-7. Repeat from (5) whenever you want to update the backup!
+4. Repeat from (2) whenever you want to update the backup!
 
 The backup process should tolerate interruptions with ctrl-c and carry on
 where it left later (it logs every upload and flushes the log to disk
