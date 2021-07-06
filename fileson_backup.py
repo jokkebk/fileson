@@ -111,10 +111,21 @@ def backup(args):
         return
 
     log = Fileson.load(args.logfile)
-    log.startLogging(args.logfile)
+    uploaded = { log[p]['sha1']: p for p in log.files() }
+    
+    files, total = 0, 0
+    for p in fs.files():
+        o = fs[p]
+        if not o['sha1'] in uploaded:
+            files += 1
+            total += o['size']
+    print(f'{files} files to back up, total {total/1024**2:.1f} MiB')
+    if args.simulate and not args.verbose: return
+
+    if not args.simulate: log.startLogging(args.logfile)
     log[':backup:'] = log.get(':backup:', 0) + 1
     log[':dbfile:'] = args.dbfile
-    log[':date_gmt:'] = gmt_str()
+    seed = log[':date_gmt:'] = gmt_str()
     log[':destination:'] = args.destination
 
     if args.keyfile:
@@ -134,27 +145,23 @@ def backup(args):
                 os.path.join(args.destination, b), key, False, True))
         else: make_backup = lambda a,b: shutil.copyfile(a,
                 os.path.join(args.destination, b))
-
-    uploaded = { log[p]['sha1']: p for p in log.files() }
-
-    seed = log[':date_gmt:'] # for backup filename generation
     
     try:
         for p in fs.files():
             o = fs[p]
             if o['sha1'] in uploaded:
-                if args.verbose: print('Already uploaded', p)
+                if args.verbose > 1: print('Already uploaded', p)
                 continue
             name = sha1(seed+o['sha1']).hex() # deterministic random name
             print('Backup', p.split(os.sep)[-1], o['sha1'], 'to', name)
-            make_backup(os.path.join(fs[':directory:'], p), name)
+            if not args.simulate: make_backup(os.path.join(fs[':directory:'], p), name)
             log[name] = { 'sha1': o['sha1'], 'size': o['size'] }
     except KeyboardInterrupt:
         print('Aborted while backing up. Restart later to continue')
 
-    log.endLogging()
+    if not args.simulate: log.endLogging()
     print('Closed log file.')
-backup.args = 'dbfile logfile destination keyfile deep_archive verbose'.split() # args to add
+backup.args = 'dbfile logfile destination keyfile deep_archive simulate verbose'.split() # args to add
 
 def restore(args):
     """Restore backup based on Fileson DB and backup log."""
@@ -222,6 +229,8 @@ if __name__ == "__main__":
         help='Database file (JSON format)'),
     'logfile': lambda p: p.add_argument('logfile', type=str,
         help='Logfile to append all operations to'),
+    'simulate': lambda p: p.add_argument('-i', '--simulate', action='store_true',
+        help='Simulate only (no saving)'),
     'source': lambda p: p.add_argument('source', type=str,
         help='Source directory'),
     'destination': lambda p: p.add_argument('destination', type=str,

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 from collections import namedtuple
-import argparse, configparser, inspect, os, sys
+import argparse, configparser, datetime, inspect, os, sys
 
 from fileson_util import scan as util_scan
+from fileson_backup import backup as util_backup
 
 config = configparser.ConfigParser()
 if not config.read('fileson.ini'):
@@ -46,6 +47,27 @@ def scan(args):
         util_scan(myargs(fileson, config[entry]['folder'], checksum, False, skip, strict, args.verbose))
 scan.args = 'entry verbose'.split() # args to add
 
+def backup(args):
+    """Backup one entry or all."""
+    for entry in args.entry or config.sections():
+        conf = config[entry]
+        fileson = f'{entry}.fson'
+        logfile = f'{entry}.log'
+        destination = conf['destination']
+        keyfile = conf['key']
+        deep_archive = config.getboolean(entry, 'deep_archive', fallback=False)
+        
+        destination = destination.replace('$ENTRY$', entry)
+        destination = destination.replace('$DATE$', str(datetime.datetime.today()).split()[0])
+
+        myargs = namedtuple('myargs', 'dbfile logfile destination keyfile deep_archive simulate verbose')
+        args = myargs(fileson, logfile, destination, keyfile, deep_archive, args.simulate, args.verbose)
+        
+        print(f'Backing up {entry}...')
+        if args.verbose: print(args)
+        util_backup(args)
+backup.args = 'entry simulate verbose'.split() # args to add
+
 if __name__ == "__main__":
     # These are the different argument types that can be added to a command
     arg_adders = {
@@ -55,6 +77,8 @@ if __name__ == "__main__":
         default=0, help='Print verbose status. Repeat for even more.'),
     'force': lambda p: p.add_argument('-f', '--force', action='store_true',
         help='Force action without additional prompts'),
+    'simulate': lambda p: p.add_argument('-i', '--simulate', action='store_true',
+        help='Simulate only (no saving)'),
             }
 
     # create the top-level parser

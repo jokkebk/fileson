@@ -1,7 +1,6 @@
 """Fileson class to manipulate Fileson databases."""
 import json, os, time, re
 from datetime import datetime
-from collections import defaultdict
 from typing import Any, Tuple, Generator
 
 from logdict import LogDict
