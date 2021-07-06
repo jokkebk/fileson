@@ -63,8 +63,8 @@ def backup(args):
         myargs = namedtuple('myargs', 'dbfile logfile destination keyfile deep_archive simulate verbose')
         args = myargs(fileson, logfile, destination, keyfile, deep_archive, args.simulate, args.verbose)
         
-        print(f'Backing up {entry}...')
-        if args.verbose: print(args)
+        print(f'Backing up {entry} to {destination}...')
+        if args.verbose > 1: print(args)
         util_backup(args)
 backup.args = 'entry simulate verbose'.split() # args to add
 

@@ -10,6 +10,7 @@ class BotoProgress(object):
     def __init__(self, ptype):
         self._seen = 0
         self._last = 0
+        self._start = time.time()
         self._type = ptype
         self._lock = threading.Lock()
 
@@ -17,7 +18,9 @@ class BotoProgress(object):
         with self._lock:
             self._seen += bytes_amount
             if self._last + 2**20 > self._seen: return # every 1 MB
-            sys.stdout.write("\r%.2f MB %sed" % (self._seen / 2**20, self._type))
+            now = time.time()
+            speed = self._seen/2**20 / (now - self._start) if now != self._start else 0
+            sys.stdout.write("\r%.1f MiB %sed (%.1f MiB/s)" % (self._seen / 2**20, self._type, speed))
             sys.stdout.flush()
             self._last = self._seen
 
@@ -137,7 +140,7 @@ def backup(args):
         bucket, folder = m.group(1), m.group(2)
         myargs = namedtuple('myargs', 'input s3path keyfile deep_archive verbose')
         make_backup = lambda a,b: upload(myargs(a, (bucket, folder+'/'+b),
-            key if args.keyfile else None, args.deep_archive, True))
+            key if args.keyfile else None, args.deep_archive, False))
     else:
         if args.keyfile:
             myargs = namedtuple('myargs', 'input output key verbose force')
@@ -147,15 +150,22 @@ def backup(args):
                 os.path.join(args.destination, b))
     
     try:
+        backedFiles, backedTotal, lastProgress = 0, 0, 0
         for p in fs.files():
             o = fs[p]
             if o['sha1'] in uploaded:
                 if args.verbose > 1: print('Already uploaded', p)
                 continue
             name = sha1(seed+o['sha1']).hex() # deterministic random name
-            print('Backup', p.split(os.sep)[-1], o['sha1'], 'to', name)
+            if args.verbose: print('Backup', p.split(os.sep)[-1], o['sha1'], 'to', name)
             if not args.simulate: make_backup(os.path.join(fs[':directory:'], p), name)
             log[name] = { 'sha1': o['sha1'], 'size': o['size'] }
+            backedFiles += 1
+            backedTotal += o['size']
+            if backedTotal > lastProgress + 2**20:
+                print(f'\n{backedFiles} / {files} files backed up, ' +
+                f'{backedTotal/1024**2:.0f} / {total/1024**2:.0f} MiB ' +
+                f'({backedTotal/total*100:.1f} %)')
     except KeyboardInterrupt:
         print('Aborted while backing up. Restart later to continue')
 
