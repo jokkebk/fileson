@@ -67,10 +67,11 @@ def cryptfile(infile, outfile, verbose=False):
 def encrypt(args):
     if not args.force and os.path.exists(args.output) and not 'y' in \
             input('Output exists! Do you wish to overwrite? [y/n] '): return
-    with AESFile(args.input, 'rb', key_or_file(args.key)) as fin:
+    with AESFile(args.input, 'rb', key_or_file(args.key),
+            iv=bytes.fromhex(args.iv)) as fin:
         with open(args.output, 'wb') as fout:
             cryptfile(fin, fout, verbose=args.verbose)
-encrypt.args = 'input output key verbose force'.split()
+encrypt.args = 'input output key iv verbose force'.split()
 
 def decrypt(args):
     if not args.force and os.path.exists(args.output) and not 'y' in \
@@ -81,20 +82,27 @@ def decrypt(args):
 decrypt.args = 'input output key verbose force'.split()
 
 def etag(args):
-    with open(args.input, 'rb') as f: print(calc_etag(f, args.partsize))
-etag.args = 'input partsize'.split()
+    if args.keyfile:
+        fp = AESFile(args.input, 'rb', key_or_file(args.keyfile),
+                iv=bytes.fromhex(args.iv))
+    else: fp = open(args.input, 'rb')
+    print(calc_etag(fp, args.partsize))
+    fp.close()
+etag.args = 'input partsize keyfile iv'.split()
 
 def upload(args):
     bucket, objpath = args.s3path
     s3 = boto3.client('s3')
-    if args.keyfile: fp = AESFile(args.input, 'rb', key_or_file(args.keyfile))
+    if args.keyfile:
+        fp = AESFile(args.input, 'rb', key_or_file(args.keyfile),
+                iv=bytes.fromhex(args.iv))
     else: fp = open(args.input, 'rb')
     if args.verbose: print('Upload', args.input, 'to', bucket, objpath)
     extra = {'Callback': BotoProgress('upload')}
     if args.deep_archive: extra['ExtraArgs'] = {'StorageClass': 'DEEP_ARCHIVE'}
     s3.upload_fileobj(fp, bucket, objpath, **extra)
     fp.close()
-upload.args = 'input s3path keyfile deep_archive verbose'.split()
+upload.args = 'input s3path keyfile iv deep_archive verbose'.split()
 
 def download(args):
     bucket, objpath = args.s3path
@@ -138,15 +146,15 @@ def backup(args):
     m = re.match('s3://(\w+)/(.+)', args.destination)
     if m:
         bucket, folder = m.group(1), m.group(2)
-        myargs = namedtuple('myargs', 'input s3path keyfile deep_archive verbose')
-        make_backup = lambda a,b: upload(myargs(a, (bucket, folder+'/'+b),
-            key if args.keyfile else None, args.deep_archive, False))
+        myargs = namedtuple('myargs', 'input s3path keyfile iv deep_archive verbose')
+        make_backup = lambda a,b,i: upload(myargs(a, (bucket, folder+'/'+b),
+            key if args.keyfile else None, i, args.deep_archive, False))
     else:
         if args.keyfile:
-            myargs = namedtuple('myargs', 'input output key verbose force')
-            make_backup = lambda a,b: encrypt(myargs(a,
-                os.path.join(args.destination, b), key, False, True))
-        else: make_backup = lambda a,b: shutil.copyfile(a,
+            myargs = namedtuple('myargs', 'input output key iv verbose force')
+            make_backup = lambda a,b,i: encrypt(myargs(a,
+                os.path.join(args.destination, b), key, i, False, True))
+        else: make_backup = lambda a,b,i: shutil.copyfile(a,
                 os.path.join(args.destination, b))
     
     try:
@@ -158,8 +166,8 @@ def backup(args):
                 continue
             name = sha1(seed+o['sha1']).hex() # deterministic random name
             if args.verbose: print('Backup', p.split(os.sep)[-1], o['sha1'], 'to', name)
-            if not args.simulate: make_backup(os.path.join(fs[':directory:'], p), name)
-            log[name] = { 'sha1': o['sha1'], 'size': o['size'] }
+            if not args.simulate: make_backup(os.path.join(fs[':directory:'], p), name, o['sha1'][:32])
+            log[name] = { 'sha1': o['sha1'], 'size': o['size'], 'iv': o['sha1'][:32] }
             backedFiles += 1
             backedTotal += o['size']
             if backedTotal > lastProgress + 2**20:
@@ -233,6 +241,8 @@ if __name__ == "__main__":
         help='Key in hex format or filename of the keyfile'),
     'partsize': lambda p: p.add_argument('-p', '--partsize', type=int,
         default=8, help='Multipart upload partsize (default 8 matching boto3)'),
+    'iv': lambda p: p.add_argument('--iv', type=str,
+        help='Initial value (IV) for AES256 encryption, 32 hexes'),
     'iterations': lambda p: p.add_argument('-i', '--iterations', type=str,
         default='1M', help='PBKDF2 iterations (default 1M)'),
     'dbfile': lambda p: p.add_argument('dbfile', type=str,

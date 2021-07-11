@@ -59,6 +59,7 @@ class AESFile:
     def __initAES(self) -> None:
         self.obj = AES.new(self.key, AES.MODE_CTR, counter=Counter.new(
             128, initial_value=int.from_bytes(self.iv, byteorder='big')))
+        #print('Initialized AES with IV', self.iv.hex())
 
     def __init__(self, filename: str, mode: str, key: bytes, iv: bytes=None) -> None:
         """Init the class. Documented in class docstring."""
@@ -129,9 +130,9 @@ class AESFile:
             RuntimeError: If offset is nonzero
         """
         if whence==0 and offset==self._pos: return # nop
-        if offset: raise RuntimeError('Only seek(0, whence) supported')
+        if offset!=0: raise RuntimeError('Only seek(0, whence) supported')
 
-        self.fp.seek(offset, whence) # offset=0 works for all whences
+        self.fp.seek(0, whence) # offset=0 works for all whences
         if whence==0: # absolute positioning, offset=0
             self._pos = 0
             self.__initAES()
