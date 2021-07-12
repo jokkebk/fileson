@@ -165,9 +165,10 @@ def backup(args):
                 if args.verbose > 1: print('Already uploaded', p)
                 continue
             name = sha1(seed+o['sha1']).hex() # deterministic random name
+            iv = name[:32] # use part of name as IV, quite hard to exploit
             if args.verbose: print('Backup', p.split(os.sep)[-1], o['sha1'], 'to', name)
-            if not args.simulate: make_backup(os.path.join(fs[':directory:'], p), name, o['sha1'][:32])
-            log[name] = { 'sha1': o['sha1'], 'size': o['size'], 'iv': o['sha1'][:32] }
+            if not args.simulate: make_backup(os.path.join(fs[':directory:'], p), name, iv)
+            log[name] = { 'sha1': o['sha1'], 'size': o['size'], 'iv': iv }
             backedFiles += 1
             backedTotal += o['size']
             if backedTotal > lastProgress + 2**20:
