@@ -2,8 +2,9 @@
 from collections import namedtuple
 import argparse, configparser, datetime, inspect, os, sys
 
+from fileson import Fileson
 from fileson_util import scan as util_scan
-from fileson_backup import backup as util_backup
+from fileson_backup import backup as util_backup, etag as util_etag
 
 config = configparser.ConfigParser()
 if not config.read('fileson.ini'):
@@ -68,6 +69,28 @@ def backup(args):
         util_backup(args)
 backup.args = 'entry simulate verbose'.split() # args to add
 
+def etag(args):
+    """Calculate ETAG checksums of backup files."""
+    for entry in args.entry or config.sections():
+        print(f'Processing {entry}')
+        conf = config[entry]
+        fs = Fileson.load(f'{entry}.fson')
+        fdir = fs[':directory:']
+        fpath = {fs[k]['sha1']: k for k in fs.files()}
+        log = Fileson.load(f'{entry}.log')
+        keyfile = conf['key']
+        
+        log.startLogging(f'{entry}.log')
+        for e,f in [(k,log[k]) for k in log.files()]:
+            if not 'iv' in f or 'etag' in f: continue
+            myargs = namedtuple('myargs', 'input partsize keyfile iv')
+            arg = myargs(os.path.join(fdir, fpath[f['sha1']]), args.partsize, keyfile, f['iv'])
+            f['etag'] = util_etag(arg)
+            if args.verbose: print(f)
+            log[e] = f
+        log.endLogging()
+etag.args = 'entry partsize verbose'.split() # args to add
+
 if __name__ == "__main__":
     # These are the different argument types that can be added to a command
     arg_adders = {
@@ -77,6 +100,8 @@ if __name__ == "__main__":
         default=0, help='Print verbose status. Repeat for even more.'),
     'force': lambda p: p.add_argument('-f', '--force', action='store_true',
         help='Force action without additional prompts'),
+    'partsize': lambda p: p.add_argument('-p', '--partsize', type=int,
+        default=None, help='Multipart upload partsize (default 8 matching boto3)'),
     'simulate': lambda p: p.add_argument('-i', '--simulate', action='store_true',
         help='Simulate only (no saving)'),
             }

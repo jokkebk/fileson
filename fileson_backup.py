@@ -86,8 +86,10 @@ def etag(args):
         fp = AESFile(args.input, 'rb', key_or_file(args.keyfile),
                 iv=bytes.fromhex(args.iv))
     else: fp = open(args.input, 'rb')
-    print(calc_etag(fp, args.partsize))
+    et = calc_etag(fp, args.partsize or 8)
+    print(et)
     fp.close()
+    return et
 etag.args = 'input partsize keyfile iv'.split()
 
 def upload(args):
@@ -159,16 +161,20 @@ def backup(args):
     
     try:
         backedFiles, backedTotal, lastProgress = 0, 0, 0
-        for p in fs.files():
-            o = fs[p]
+        for p,o in [(p, fs[p]) for p in fs.files()]:
             if o['sha1'] in uploaded:
                 if args.verbose > 1: print('Already uploaded', p)
                 continue
             name = sha1(seed+o['sha1']).hex() # deterministic random name
             iv = name[:32] # use part of name as IV, quite hard to exploit
-            if args.verbose: print('Backup', p.split(os.sep)[-1], o['sha1'], 'to', name)
-            if not args.simulate: make_backup(os.path.join(fs[':directory:'], p), name, iv)
-            log[name] = { 'sha1': o['sha1'], 'size': o['size'], 'iv': iv }
+            fpath = os.path.join(fs[':directory:'], p)
+            etargs = namedtuple('myargs', 'input partsize keyfile iv')
+            et = etag(etargs(fpath, None, args.keyfile, iv)) # etag to log
+
+            if not args.simulate: make_backup(fpath, name, iv)
+            log[name] = { 'sha1': o['sha1'], 'size': o['size'], 'iv': iv, 'etag': et }
+            if args.verbose: print(f'Backup {fpath} to {name}')
+            if args.verbose > 1: print(log[name])
             backedFiles += 1
             backedTotal += o['size']
             if backedTotal > lastProgress + 2**20:
@@ -241,7 +247,7 @@ if __name__ == "__main__":
     'keyfile': lambda p: p.add_argument('-k', '--keyfile', type=str,
         help='Key in hex format or filename of the keyfile'),
     'partsize': lambda p: p.add_argument('-p', '--partsize', type=int,
-        default=8, help='Multipart upload partsize (default 8 matching boto3)'),
+        default=None, help='Multipart upload partsize (default 8 matching boto3)'),
     'iv': lambda p: p.add_argument('--iv', type=str,
         help='Initial value (IV) for AES256 encryption, 32 hexes'),
     'iterations': lambda p: p.add_argument('-i', '--iterations', type=str,
