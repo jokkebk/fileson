@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from collections import namedtuple
-import argparse, configparser, datetime, inspect, os, sys
+import argparse, configparser, csv, datetime, inspect, os, sys
 
 from fileson import Fileson
 from fileson_util import scan as util_scan
@@ -70,30 +70,32 @@ def backup(args):
 backup.args = 'entry simulate verbose'.split() # args to add
 
 def etag(args):
-    """Calculate ETAG checksums of backup files."""
+    """Check ETAG checksums of backed up files."""
+    etags = {}
+    with open(args.csv, newline='') as csvfile:
+        reader = csv.reader(csvfile, delimiter=',', quotechar='"')
+        I = 0
+        for row in reader:
+            fname, etag = row[1].split('/')[-1], row[4]
+            etags[fname] = etag
+    print('Read', len(etags), 'etags from', args.csv)
+
+    ok = 0
     for entry in args.entry or config.sections():
         print(f'Processing {entry}')
-        conf = config[entry]
-        fs = Fileson.load(f'{entry}.fson')
-        fdir = fs[':directory:']
-        fpath = {fs[k]['sha1']: k for k in fs.files()}
         log = Fileson.load(f'{entry}.log')
-        keyfile = conf['key']
         
-        log.startLogging(f'{entry}.log')
         for e,f in [(k,log[k]) for k in log.files()]:
-            if not 'iv' in f or 'etag' in f: continue
-            myargs = namedtuple('myargs', 'input partsize keyfile iv')
-            arg = myargs(os.path.join(fdir, fpath[f['sha1']]), args.partsize, keyfile, f['iv'])
-            f['etag'] = util_etag(arg)
-            if args.verbose: print(f)
-            log[e] = f
-        log.endLogging()
-etag.args = 'entry partsize verbose'.split() # args to add
+            if not 'etag' in f: continue
+            if f['etag'] == etags[e]: ok += 1
+            else: print('Mismatching etag', e, f, etags[e])
+    print(ok, 'ok')
+etag.args = 'csv entry partsize verbose'.split() # args to add
 
 if __name__ == "__main__":
     # These are the different argument types that can be added to a command
     arg_adders = {
+    'csv': lambda p: p.add_argument('csv', type=str, help='CSV file with etags'),
     'entry': lambda p: p.add_argument('-e', '--entry', type=str, nargs='?', action='append',
         help='Backup entry (repeat for multiple) in fileson.ini'),
     'verbose': lambda p: p.add_argument('-v', '--verbose', action='count',
