@@ -80,16 +80,19 @@ def etag(args):
             etags[fname] = etag
     print('Read', len(etags), 'etags from', args.csv)
 
-    ok = 0
     for entry in args.entry or config.sections():
         print(f'Processing {entry}')
         log = Fileson.load(f'{entry}.log')
         
+        ok, missing = 0, 0
         for e,f in [(k,log[k]) for k in log.files()]:
             if not 'etag' in f: continue
+            if not e in etags:
+                missing += 1
+                continue
             if f['etag'] == etags[e]: ok += 1
             else: print('Mismatching etag', e, f, etags[e])
-    print(ok, 'ok')
+        print(ok, 'ok,', missing, 'not in CSV (yet)')
 etag.args = 'csv entry partsize verbose'.split() # args to add
 
 if __name__ == "__main__":
