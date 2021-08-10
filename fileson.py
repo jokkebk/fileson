@@ -38,6 +38,7 @@ class Fileson(LogDict):
     """
 
     summer = {
+            'none': lambda p,f: None,
             'sha1': lambda p,f: sha_file(p),
             'sha1fast': lambda p,f: sha_file(p, quick=True)+str(f['size']),
             }

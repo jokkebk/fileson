@@ -9,7 +9,7 @@ from fileson_backup import backup as util_backup, etag as util_etag
 config = configparser.ConfigParser()
 if not config.read('fileson.ini'):
     print('You need to create a fileson.ini in this directory first!')
-    exit(-1)
+    sys.exit(-1)
 
 # Function per command
 def check(args):

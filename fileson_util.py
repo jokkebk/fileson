@@ -121,7 +121,7 @@ if __name__ == "__main__":
     # These are the different argument types that can be added to a command
     arg_adders = {
     'checksum': lambda p: p.add_argument('-c', '--checksum', type=str,
-        choices=Fileson.summer.keys(), default=None,
+        choices=Fileson.summer.keys(), default='sha1',
         help='Checksum method (if relevant in the context)'),
     'db_or_dir': lambda p: p.add_argument('db_or_dir', type=str,
         help='Database file or directory, supports db.fson~1 history mode.'),
