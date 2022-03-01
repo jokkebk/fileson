@@ -8,7 +8,7 @@ con = sqlite3.connect(sys.argv[2])#, isolation_level=None)
 cur = con.cursor()
 
 cur.execute('''CREATE TABLE IF NOT EXISTS entries (
-    name TEXT NOT NULL
+    name TEXT NOT NULL UNIQUE
 )''')
 
 cur.execute('''CREATE TABLE IF NOT EXISTS scans (
@@ -62,7 +62,5 @@ with open(sys.argv[1], 'r', encoding='utf8') as fin:
             else: # new folder
                 cur.execute('''INSERT INTO files (scan_id, filename, modified_gmt)
                         VALUES(?, ?, ?)''', (scan_id, t[0], t[1]['modified_gmt']))
-
-        #else: del ld[t[0]]
 con.commit()
 con.close()
