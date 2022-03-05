@@ -11,6 +11,8 @@ cur.execute('''CREATE TABLE IF NOT EXISTS entries (
     name TEXT NOT NULL UNIQUE
 )''')
 
+cur.execute('CREATE INDEX IF NOT EXISTS entry_name_idx ON entries(name)')
+
 cur.execute('''CREATE TABLE IF NOT EXISTS scans (
     entry_id INTEGER NOT NULL,
     date_gmt TEXT NOT NULL,
@@ -18,7 +20,7 @@ cur.execute('''CREATE TABLE IF NOT EXISTS scans (
     skip TEXT DEFAULT ''
 )''')
 
-cur.execute('CREATE INDEX IF NOT EXISTS scan_entry_idx ON scans(entry_id)')
+cur.execute('CREATE INDEX IF NOT EXISTS scan_entry_idx ON scans(entry_id, date_gmt)')
 
 cur.execute('''CREATE TABLE IF NOT EXISTS files (
     scan_id INTEGER NOT NULL,
@@ -27,6 +29,8 @@ cur.execute('''CREATE TABLE IF NOT EXISTS files (
     size INTEGER DEFAULT NULL,
     sha1 TEXT DEFAULT NULL
 )''')
+
+cur.execute('CREATE INDEX IF NOT EXISTS file_idx ON files(scan_id, filename)')
 
 name = sys.argv[1] #input('Name of entry to add: ')
 
