@@ -7,20 +7,14 @@ if len(sys.argv) < 3:
 con = sqlite3.connect(sys.argv[1])#, isolation_level=None)
 cur = con.cursor()
 
-cur.execute('''CREATE TABLE IF NOT EXISTS entries (
-    name TEXT NOT NULL UNIQUE
-)''')
-
-cur.execute('CREATE INDEX IF NOT EXISTS entry_name_idx ON entries(name)')
-
 cur.execute('''CREATE TABLE IF NOT EXISTS scans (
-    entry_id INTEGER NOT NULL,
+    entry TEXT NOT NULL,
     date_gmt TEXT NOT NULL,
     folder TEXT NOT NULL,
     skip TEXT DEFAULT ''
 )''')
 
-cur.execute('CREATE INDEX IF NOT EXISTS scan_entry_idx ON scans(entry_id, date_gmt)')
+cur.execute('CREATE INDEX IF NOT EXISTS scan_entry_idx ON scans(entry, date_gmt)')
 
 # op = 0 for deletion, 1 for modification, 2 for creation
 # modified_gmt NULL for deletions
@@ -37,14 +31,10 @@ cur.execute('''CREATE TABLE IF NOT EXISTS files (
 
 cur.execute('CREATE INDEX IF NOT EXISTS file_idx ON files(scan_id, filename)')
 
-for name in sys.argv[2:]:
-    cur.execute('INSERT INTO entries (name) VALUES (?)', (name,))
-    entry_id = cur.lastrowid
-    print('Created entry', entry_id)
-    
+for entry in sys.argv[2:]:
     current = {} # Current state
 
-    with open(name, 'r', encoding='utf8') as fin:
+    with open(entry, 'r', encoding='utf8') as fin:
         inmeta = False
         meta = {}
         for l in fin.readlines():
@@ -57,9 +47,9 @@ for name in sys.argv[2:]:
                 if inmeta:
                     inmeta = False
                     print(meta)
-                    cur.execute('''INSERT INTO scans (entry_id, date_gmt, folder)
+                    cur.execute('''INSERT INTO scans (entry, date_gmt, folder)
                             VALUES (?, ?, ?)''',
-                            (entry_id, meta.get(':date_gmt:', ''), meta.get(':directory:', '')))
+                            (entry, meta.get(':date_gmt:', ''), meta.get(':directory:', '')))
                     scan_id = cur.lastrowid
 
                 fn = t[0]
@@ -70,11 +60,11 @@ for name in sys.argv[2:]:
                     del current[fn]
                     cur.execute('''INSERT INTO files (scan_id, filename, op)
                             VALUES(?, ?, ?)''', (scan_id, t[0], 0))
-                elif 'size' in t[1]: # new file
+                elif 'size' in t[1]: # new/modified file
                     cur.execute('''INSERT INTO files (scan_id, filename, modified_gmt, size, sha1, op)
                         VALUES(?, ?, ?, ?, ?, ?)''',
                         (scan_id, t[0], t[1]['modified_gmt'], t[1]['size'], t[1]['sha1'], op))
-                else: # new folder
+                else: # new/modified folder
                     cur.execute('''INSERT INTO files (scan_id, filename, modified_gmt, op)
                             VALUES(?, ?, ?, ?)''', (scan_id, t[0], t[1]['modified_gmt'], op))
 con.commit()

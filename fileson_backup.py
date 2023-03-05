@@ -87,10 +87,10 @@ def etag(args):
                 iv=bytes.fromhex(args.iv))
     else: fp = open(args.input, 'rb')
     et = calc_etag(fp, args.partsize or 8)
-    print(et)
+    if not args.quiet: print(et)
     fp.close()
     return et
-etag.args = 'input partsize keyfile iv'.split()
+etag.args = 'input quiet partsize keyfile iv'.split()
 
 def upload(args):
     bucket, objpath = args.s3path
@@ -168,8 +168,8 @@ def backup(args):
             name = sha1(seed+o['sha1']).hex() # deterministic random name
             iv = name[:32] # use part of name as IV, quite hard to exploit
             fpath = os.path.join(fs[':directory:'], p)
-            etargs = namedtuple('myargs', 'input partsize keyfile iv')
-            et = etag(etargs(fpath, None, args.keyfile, iv)) # etag to log
+            etargs = namedtuple('myargs', 'input quiet partsize keyfile iv')
+            et = etag(etargs(fpath, True, None, args.keyfile, iv)) # etag to log
 
             if not args.simulate: make_backup(fpath, name, iv)
             log[name] = { 'sha1': o['sha1'], 'size': o['size'], 'iv': iv, 'etag': et }
@@ -264,6 +264,8 @@ if __name__ == "__main__":
         help='Destination directory'),
     'dir': lambda p: p.add_argument('dir', nargs='?', type=str, default=None,
         help='Directory to scan'),
+    'quiet': lambda p: p.add_argument('-q', '--quiet', action='store_true',
+        help='Supress output'),
     'verbose': lambda p: p.add_argument('-v', '--verbose', action='count',
         default=0, help='Print verbose status. Repeat for even more.'),
     'force': lambda p: p.add_argument('-f', '--force', action='store_true',
