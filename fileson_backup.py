@@ -2,7 +2,7 @@
 from collections import defaultdict, namedtuple
 from fileson import Fileson, gmt_str, gmt_epoch
 from logdict import LogDict
-from crypt import keygen as kg, AESFile, sha1, calc_etag
+from mycrypt import AESFile, sha1, calc_etag
 import argparse, os, sys, json, signal, time, hashlib, inspect, shutil, re
 import boto3, threading
 
@@ -49,7 +49,8 @@ def keygen(args):
         return
     iterations = int(args.iterations.replace('M', '000k').replace('k', '000'))
     start = time.time()
-    keyhex = kg(args.password, args.salt, iterations).hex()
+    keyhex = hashlib.pbkdf2_hmac('sha256', args.password.encode('utf8'),
+        args.salt.encode('utf8'), iterations).hex()
     print(keyhex)
     if args.verbose: print('Generating that took %.3f seconds' % (time.time()-start))
 keygen.args = 'password salt iterations verbose'.split()

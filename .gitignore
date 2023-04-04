@@ -1,5 +1,7 @@
 *.log 
 *.fson 
+*.zip 
+*/my.key
 __pycache__ 
 docs/doctrees/
 docs/html/

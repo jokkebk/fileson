@@ -22,20 +22,6 @@ def calc_etag(infile, partsize=8):
     return hashlib.md5(b''.join(md5_digests)).hexdigest() + '-' + \
         str(len(md5_digests))
 
-def keygen(password: str, salt: str, iterations: int=10**6) -> bytes:
-    """Generate a 32 byte key from password and salt using PBKDF2.
-
-    Args:
-        password (str): Password string (encoded to utf8)
-        salt (str): Salt (encoded to utf8)
-        iterations (int): Number of iterations, 1M is the default
-
-    Returns:
-        bytes: 32 byte key
-    """
-    return hashlib.pbkdf2_hmac('sha256', password.encode('utf8'),
-        salt.encode('utf8'), iterations)
-
 class AESFile:
     """On-the-fly AES encryption (on read) and decryption (on write).
 
