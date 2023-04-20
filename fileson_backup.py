@@ -185,9 +185,41 @@ def backup(args):
     except KeyboardInterrupt:
         print('Aborted while backing up. Restart later to continue')
 
-    if not args.simulate: log.endLogging()
-    print('Closed log file.')
+    if not args.simulate:
+        log.endLogging()
+        print('Closed log file.')
 backup.args = 'dbfile logfile destination keyfile deep_archive simulate verbose'.split() # args to add
+
+def find(args):
+    """Locate files in backup based on Fileson DB and backup log."""
+    fs = Fileson.load(args.dbfile)
+    log = Fileson.load(args.logfile)
+    
+    # Find all files in fileson log that match search string
+    shas = defaultdict(list)
+    for p in fs.files():
+        if args.search in p: shas[fs[p]['sha1']].append(p)
+
+    dest = ''
+    # Go through the log.log and find entries that match the SHA1
+    for tup in log.log:
+        if len(tup) < 2: continue
+        k, v = tup # unpack tuple
+
+        # Keep track of the last :destination: entry
+        if k == ':destination:': dest = v
+        
+        # If value is not a dict, skip
+        if not isinstance(v, dict): continue
+
+        if 'sha1' in v and v['sha1'] in shas:
+            files = shas[v['sha1']]
+            print(f'{dest}/{k}')
+            print(f'SHA1 {v["sha1"]} ({v["size"]} bytes) matches files:',
+                  *files, sep='\n  ')
+        
+
+find.args = 'dbfile logfile search'.split()
 
 def restore(args):
     """Restore backup based on Fileson DB and backup log."""
@@ -213,9 +245,10 @@ def restore(args):
         fp = args.destination
         if p != '.': fp = os.path.join(fp, p)
         print('mkdir', fp)
-        os.makedirs(fp, exist_ok=True)
-        mtime = gmt_epoch(fs[p]['modified_gmt'])
-        os.utime(fp, (mtime, mtime))
+        if not simulate:
+            os.makedirs(fp, exist_ok=True)
+            mtime = gmt_epoch(fs[p]['modified_gmt'])
+            os.utime(fp, (mtime, mtime))
 
     for p in sorted(fs.files()):
         b = uploaded.get(fs[p]['sha1'], None)
@@ -225,10 +258,11 @@ def restore(args):
         fp = os.path.join(args.destination, p)
         bp = os.path.join(args.source, b)
         print('get', fp, 'from', bp)
-        make_restore(bp, fp)
-        mtime = gmt_epoch(fs[p]['modified_gmt'])
-        os.utime(fp, (mtime, mtime))
-restore.args = 'dbfile logfile source destination keyfile verbose'.split() # args to add
+        if not simulate:
+            make_restore(bp, fp)
+            mtime = gmt_epoch(fs[p]['modified_gmt'])
+            os.utime(fp, (mtime, mtime))
+restore.args = 'dbfile logfile source destination keyfile verbose simulate'.split() # args to add
 
 if __name__ == "__main__":
     # These are the different argument types that can be added to a command
@@ -237,6 +271,7 @@ if __name__ == "__main__":
     'salt': lambda p: p.add_argument('salt', type=str, nargs='?', help='Salt', default=None),
     'input': lambda p: p.add_argument('input', type=str, help='Input file'),
     'output': lambda p: p.add_argument('output', type=str, help='Output file'),
+    'search': lambda p: p.add_argument('search', type=str, help='Search string'),
     's3path': lambda p: p.add_argument('s3path', type=str, action=S3Action,
         help='S3 path in form s3://bucket/objpath'),
     'deep_archive': lambda p: p.add_argument('-d', '--deep-archive', action='store_true',

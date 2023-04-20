@@ -122,6 +122,8 @@ class Fileson(LogDict):
 
         startTime, fileCount, byteCount, seenG = time.time(), 0, 0, 0
 
+        if verbose: print('Scanning', directory, 'skipping', skiplist)
+
         for e in scantree(directory, skip):
             p = os.path.relpath(e.path, directory)
             missing.discard(p)

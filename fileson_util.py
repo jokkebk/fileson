@@ -21,6 +21,19 @@ def duplicates(args):
         if len(ps)>1: print(csum, *ps, sep='\n')
 duplicates.args = 'db_or_dir minsize checksum'.split() # args to add
 
+def show(args):
+    """Show files in a Fileson DB."""
+    fs = Fileson.load(args.dbfile)
+
+    if args.verbose:
+        fields = ['size', 'modified_gmt', 'sha1']
+        for p in fs.files():
+            values = [fs[p][f]  if f in fs[p] else '' for f in fields]
+            print(p, *(f'{k} {v}' for k,v in zip(fields, values)))
+    else:
+        for p in fs.files(): print(p)
+show.args = ['dbfile', 'verbose'] # args to add
+
 def stats(args):
     """Show statistics of a Fileson DB."""
     fs = Fileson.load_or_scan(args.db_or_dir)
@@ -98,6 +111,9 @@ copy.args = 'src dest force'.split() # args to add
 def scan(args):
     """Create fileson JSON file database."""
     fs = Fileson.load(args.dbfile)
+
+    # Log real time to avoid losing all scan data on interrupt
+    if not args.simulate: fs.startLogging(args.dbfile)
     
     if not args.dir:
         if not ':directory:' in fs:
@@ -112,9 +128,13 @@ def scan(args):
         if args.verbose and args.checksum:
             print('Using checksum', args.checksum, 'from DB')
 
-    fs.scan(args.dir, checksum=args.checksum, verbose=args.verbose, strict=args.strict,
-        skip=args.skip)
-    if not args.simulate: fs.save(args.dbfile)
+    try:
+        fs.scan(args.dir, checksum=args.checksum, verbose=args.verbose,
+                strict=args.strict, skip=args.skip)
+    except KeyboardInterrupt:
+        print('Aborted while backing up. Restart later to continue')
+
+    if not args.simulate: fs.endLogging()
 scan.args = 'dbfile dir checksum simulate skip strict verbose'.split() # args to add
 
 if __name__ == "__main__":
