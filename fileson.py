@@ -127,8 +127,17 @@ class Fileson(LogDict):
         for e in scantree(directory, skip):
             p = os.path.relpath(e.path, directory)
             missing.discard(p)
-            if e.is_dir(follow_symlinks=False):
+            # Store symlink details
+            if e.is_symlink():
+                # Get relative path to target
+                relative = os.path.relpath(os.readlink(e.path), directory)
+                self.set(p, { 'link': relative,
+                              'modified_gmt': gmt_str(e.stat().st_mtime) })
+                if verbose > 1: print('Symlink', p, '->', self[p]['link'])
+            # Process directories
+            elif e.is_dir(follow_symlinks=False):
                 self.set(p, { 'modified_gmt': gmt_str(e.stat().st_mtime) })
+            # Should be a file
             else:
                 f = { 'size': e.stat().st_size,
                       'modified_gmt': gmt_str(e.stat().st_mtime) }
