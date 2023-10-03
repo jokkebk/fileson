@@ -114,7 +114,9 @@ class LogDict(MutableMapping):
         i2 = self.log.index(end) if end else len(self.log)
         for t in self.log[i1:i2]:
             if len(t)==2: ld[t[0]] = t[1]
-            elif t[0] in ld: del ld[t[0]]
+            else: # Try to delete non-existing nodes as well to maintain log
+                try: del ld[t[0]]
+                except KeyError: pass
         return ld
 
     def __getitem__(self, key): return self.__d[key]

@@ -3,7 +3,7 @@ from collections import namedtuple
 import argparse, configparser, csv, datetime, inspect, os, sys
 
 from fileson import Fileson
-from fileson_util import scan as util_scan
+from fileson_util import scan as util_scan, summary as util_summary
 from fileson_backup import backup as util_backup, etag as util_etag
 
 config = configparser.ConfigParser()
@@ -32,6 +32,13 @@ def check(args):
         
         print()
 check.args = 'entry verbose'.split() # args to add
+
+def summary(args):
+    """Show the latest scan summary"""
+    # Just print out the entry initially
+    myargs = namedtuple('myargs', 'dbfile')
+    util_summary(myargs(f'{args.entry}.fson'))
+summary.args = 'entry_mandatory'.split() # args to add
 
 def scan(args):
     """Scan one entry or all."""
@@ -99,6 +106,8 @@ if __name__ == "__main__":
     # These are the different argument types that can be added to a command
     arg_adders = {
     'csv': lambda p: p.add_argument('csv', type=str, help='CSV file with etags'),
+    'entry_mandatory': lambda p: p.add_argument('entry', type=str,
+        help='Backup entry in fileson.ini'),
     'entry': lambda p: p.add_argument('-e', '--entry', type=str, nargs='?', action='append',
         help='Backup entry (repeat for multiple) in fileson.ini'),
     'verbose': lambda p: p.add_argument('-v', '--verbose', action='count',

@@ -56,6 +56,71 @@ def stats(args):
                 (max(fs[p]['size'] for p in files)/2**30))
 stats.args = ['db_or_dir', 'verbose'] # args to add
 
+def format_size(size):
+    """Return human readable size."""
+    if size > 2**30: return f'{size/2**30:.2f} GiB'
+    elif size > 2**20: return f'{size/2**20:.2f} MiB'
+    elif size > 2**10: return f'{size/2**10:.2f} KiB'
+    else: return f'{size} B'
+
+def summary(args):
+    """Show summary of the latest scan in Fileson DB."""
+    fs = Fileson.load(args.dbfile)
+
+    last_scan = fs.get(':scan:', 0)
+    
+    if last_scan == 0:
+        print('No scan has been run yet!')
+        return
+
+    print(len(fs.log), 'entries', last_scan, 'scans')
+
+    # Make a slice of the log before the last scan, and the last scan
+    fs_initial = fs.slice(end=(':scan:', last_scan)) # stop is exclusive
+    fs_last = fs.slice(start=(':scan:', last_scan))
+    
+    print('Initial log size', len(fs_initial.log), 'last scan size', len(fs_last.log))
+    
+    # Loop through all files in the last scan and compare to initial
+    # to detect modified, added and deleted files on top level directory level
+    counts = defaultdict(lambda: defaultdict(int))
+    sizes = defaultdict(lambda: defaultdict(int))
+    dirs = set()
+    for entry in fs_last.log:
+        if entry[0][0] == ':': continue # skip metadata
+        
+        if len(entry)==2: # add or update
+            p, data = entry
+            topdir = p.split(os.path.sep)[0] # top level directory
+            dirs.add(topdir)
+            if p in fs_initial:
+                counts[topdir]['modified'] += 1
+                sizes[topdir]['modified'] += data.get('size', 0)
+            else:
+                counts[topdir]['added'] += 1
+                sizes[topdir]['added'] += data.get('size', 0)
+
+        else: # delete
+            p = entry[0]
+            topdir = p.split(os.path.sep)[0] # top level directory
+            dirs.add(topdir)
+            data = fs_initial[p]
+            counts[topdir]['deleted'] += 1
+            sizes[topdir]['deleted'] += fs_initial[p].get('size', 0)
+
+    # Sum up sizes per directory
+    dirsizes = [(d, sum(sizes[d].values())) for d in dirs]
+
+    # Sort directories by change size (descending)
+    dirsizes.sort(key=lambda x: x[1], reverse=True)
+    for d,_ in dirsizes:
+        cnt = counts[d]
+        # Do ANSI escapes for colors: light red for deleted, light green for added, light blue for modified
+        escapes = {'deleted': '\033[91m', 'added': '\033[92m', 'modified': '\033[94m'}
+        str = ", ".join(f'{escapes[k]}{cnt[k]} {k} {format_size(v)}\033[0m' for k,v in sizes[d].items())
+        print(f'{d}: {str}')
+summary.args = ['dbfile'] # args to add
+
 def checksum(args):
     """Change or re-run checksums for a Fileson DB."""
     fs = Fileson.load(args.dbfile)
