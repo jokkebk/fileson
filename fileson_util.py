@@ -136,21 +136,41 @@ def checksum(args):
         return
     if args.verbose: print('Base directory', directory)
 
-    files = {p: o for p,r,o in fs.genItems('files')}
+    files = fs.files()
     n = args.percent * len(files) // 100
-    if args.verbose: print('Rechecking', n, 'files\' checksums')
-    csummer = Fileson.summer[fs.checksum]
+    files = random.sample(files, k=n)
 
-    for p in random.sample(files.keys(), k=n):
-        f = files[p]
-        fp = os.path.join(args.dir, p)
-        old = f[fs.checksum]
+    if args.verbose: print('Rechecking', n, 'files\' checksums')
+    csummer = Fileson.summer[checksum]
+    total = sum(fs[p]['size'] for p in files)
+    checked = 0
+
+    for p in random.sample(files, k=n):
+        f = fs[p]
+        fp = os.path.join(directory, p)
+        old = f[checksum]
+        
+        # Check if file exists
+        if not os.path.exists(fp):
+            print('MISSING', fp)
+            continue
+
         new = csummer(fp, f)
+        checked += f['size']
+
+        # Every 1GiB passed print a status line
+        if args.verbose and \
+            checked // 2**30 != (checked - f['size']) // 2**30:
+            print('Processed', format_size(checked), 'of', format_size(total),
+                  f'({checked/total*100:.2f}%)',)
+
         if old == new:
-            if args.verbose: print('OK', fp.split(os.sep)[-1])
+            if args.verbose > 1: print('OK', fp.split(os.sep)[-1])
         else:
             print('FAIL', fp)
-            print('old', old, 'vs.', new, 'new')
+            print(p, 'old', old, 'vs.', new, 'new')
+
+    if args.verbose: print('Total bytes', format_size(total), 'scanned.')
 checksum.args = 'dbfile percent dir force verbose'.split() # args to add
 
 def diff(args):
