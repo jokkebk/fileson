@@ -37,8 +37,14 @@ def summary(args):
     """Show the latest scan summary"""
     # Just print out the entry initially
     myargs = namedtuple('myargs', 'dbfile')
-    util_summary(myargs(f'{args.entry}.fson'))
-summary.args = 'entry_mandatory'.split() # args to add
+    if args.entry:
+        util_summary(myargs(f'{args.entry}.fson'))
+    else: # or all entries
+        for entry in config.sections():
+            print(f'[{entry}]')
+            util_summary(myargs(f'{entry}.fson'))
+            print()
+summary.args = 'entry'.split() # args to add
 
 def scan(args):
     """Scan one entry or all."""
@@ -53,6 +59,11 @@ def scan(args):
 
         myargs = namedtuple('myargs', 'dbfile dir checksum simulate skip strict verbose')
         util_scan(myargs(fileson, config[entry]['folder'], checksum, False, skip, strict, args.verbose))
+        
+        # If verbose is set, print out the summary as well
+        if args.verbose:
+            myargs = namedtuple('myargs', 'dbfile')
+            util_summary(myargs(fileson))
 scan.args = 'entry verbose'.split() # args to add
 
 def backup(args):
