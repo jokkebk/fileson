@@ -101,6 +101,10 @@ class Fileson(LogDict):
         verbose = kwargs.get('verbose', 0)
         skiplist = kwargs.get('skip', [])
         strict = kwargs.get('strict', False)
+        
+        # On strict mode, use full path as key, otherwise just the filename.
+        # Additionally, store the modified time and size to detect changes.
+        # Other metadata is not used for comparison.
         make_key = lambda p,f: (p if strict else p.split(os.sep)[-1],
                 f['modified_gmt'], f['size'])
         
@@ -110,6 +114,7 @@ class Fileson(LogDict):
         self[':checksum:'] = checksum
         self[':date_gmt:'] = gmt_str()
 
+        # Create checksum cache, make_key is used to store and retrieve
         ccache = {}
         if checksum:
             for p in self.files():
@@ -132,15 +137,18 @@ class Fileson(LogDict):
                 # Get relative path to target
                 relative = os.path.relpath(os.readlink(e.path), directory)
                 self.set(p, { 'link': relative,
-                              'modified_gmt': gmt_str(e.stat().st_mtime) })
+                              'modified_gmt': gmt_str(e.stat().st_mtime),
+                              'permissions': e.stat().st_mode })
                 if verbose > 1: print('Symlink', p, '->', self[p]['link'])
             # Process directories
             elif e.is_dir(follow_symlinks=False):
-                self.set(p, { 'modified_gmt': gmt_str(e.stat().st_mtime) })
+                self.set(p, { 'modified_gmt': gmt_str(e.stat().st_mtime),
+                              'permissions': e.stat().st_mode})
             # Should be a file
             else:
                 f = { 'size': e.stat().st_size,
-                      'modified_gmt': gmt_str(e.stat().st_mtime) }
+                     'modified_gmt': gmt_str(e.stat().st_mtime),
+                     'permissions': e.stat().st_mode }
 
                 if checksum:
                     if verbose > 1 and not make_key(p,f) in ccache:
