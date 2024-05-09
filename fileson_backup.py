@@ -3,7 +3,7 @@ from collections import defaultdict, namedtuple
 from fileson import Fileson, gmt_str, gmt_epoch
 from logdict import LogDict
 from mycrypt import AESFile, sha1, calc_etag
-import argparse, os, sys, json, signal, time, hashlib, inspect, shutil, re
+import argparse, os, sys, binascii, time, hashlib, inspect, shutil, re
 import boto3, threading
 
 class BotoProgress(object):
@@ -126,7 +126,7 @@ def backup(args):
 
     log = Fileson.load(args.logfile)
     uploaded = { log[p]['sha1']: p for p in log.files() }
-    
+
     files, total = 0, 0
     for p in fs.files():
         o = fs[p]
@@ -161,6 +161,12 @@ def backup(args):
                 os.path.join(args.destination, b))
     
     try:
+        if not args.simulate:
+            # Save the DB file to the backup
+            print('Backing up the database file...')
+            random_iv = binascii.hexlify(os.urandom(16)).decode()
+            make_backup(args.dbfile, os.path.basename(args.dbfile), random_iv)
+
         backedFiles, backedTotal, lastProgress = 0, 0, 0
         for p,o in [(p, fs[p]) for p in fs.files()]:
             if o['sha1'] in uploaded:
@@ -187,7 +193,12 @@ def backup(args):
 
     if not args.simulate:
         log.endLogging()
-        print('Closed log file.')
+        print('Closed log file. Uploading it to the backup...')
+        
+        # Save the log file to the backup
+        random_iv = binascii.hexlify(os.urandom(16)).decode()
+        make_backup(args.logfile, os.path.basename(args.logfile), random_iv)
+        print('Backup complete.')
 backup.args = 'dbfile logfile destination keyfile deep_archive simulate verbose'.split() # args to add
 
 def find(args):
