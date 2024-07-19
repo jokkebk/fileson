@@ -179,7 +179,9 @@ def backup(args):
             et = etag(etargs(fpath, True, None, args.keyfile, iv)) # etag to log
 
             if not args.simulate: make_backup(fpath, name, iv)
+
             log[name] = { 'sha1': o['sha1'], 'size': o['size'], 'iv': iv, 'etag': et }
+            uploaded[o['sha1']] = p # mark as uploaded to avoid duplicates
             if args.verbose: print(f'Backup {fpath} to {name}')
             if args.verbose > 1: print(log[name])
             backedFiles += 1
