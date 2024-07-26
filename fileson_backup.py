@@ -3,6 +3,7 @@ from collections import defaultdict, namedtuple
 from fileson import Fileson, gmt_str, gmt_epoch
 from logdict import LogDict
 from mycrypt import AESFile, sha1, calc_etag
+from hash import sha_file
 import argparse, os, sys, binascii, time, hashlib, inspect, shutil, re
 import boto3, threading
 
@@ -135,6 +136,10 @@ def backup(args):
             total += o['size']
     print(f'{files} files to back up, total {total/1024**2:.1f} MiB')
     if args.simulate and not args.verbose: return
+    
+    if files == 0:
+        print('No new files to back up.')
+        return
 
     if not args.simulate: log.startLogging(args.logfile)
     log[':backup:'] = log.get(':backup:', 0) + 1
@@ -162,10 +167,22 @@ def backup(args):
     
     try:
         if not args.simulate:
-            # Save the DB file to the backup
-            print('Backing up the database file...')
-            random_iv = binascii.hexlify(os.urandom(16)).decode()
-            make_backup(args.dbfile, os.path.basename(args.dbfile), random_iv)
+            dbsha = sha_file(args.dbfile)
+            if dbsha in uploaded:
+                print('Database file already uploaded')
+            else:
+                # Save the DB file to the backup
+                print(f'Backing up the database file, SHA1 {dbsha}...')
+                name = os.path.basename(args.dbfile)
+                iv = binascii.hexlify(os.urandom(16)).decode()
+                fpath = args.dbfile
+                etargs = namedtuple('myargs', 'input quiet partsize keyfile iv')
+                et = etag(etargs(fpath, True, None, args.keyfile, iv)) # etag to log
+                make_backup(fpath, name, iv)
+                
+                log[name] = { 'sha1': dbsha, 'size': os.path.getsize(args.dbfile),
+                    'iv': iv, 'etag': et }
+                uploaded[dbsha] = fpath
 
         backedFiles, backedTotal, lastProgress = 0, 0, 0
         for p,o in [(p, fs[p]) for p in fs.files()]:
