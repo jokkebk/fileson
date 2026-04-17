@@ -69,6 +69,10 @@ def cryptfile(infile, outfile, verbose=False):
 def encrypt(args):
     if not args.force and os.path.exists(args.output) and not 'y' in \
             input('Output exists! Do you wish to overwrite? [y/n] '): return
+
+    # If IV is not set, generate a random one
+    if not args.iv: args.iv = binascii.hexlify(os.urandom(16)).decode()
+
     with AESFile(args.input, 'rb', key_or_file(args.key),
             iv=bytes.fromhex(args.iv)) as fin:
         with open(args.output, 'wb') as fout:
